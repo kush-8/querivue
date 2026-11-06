@@ -1,0 +1,13 @@
+[project]
+name = "querivue-agent"
+version = "0.1.0"
+description = "Add your description here"
+authors = [
+    { name = "Kushagar Sharma", email = "kushagars08@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = []
+
+[build-system]
+requires = ["uv_build>=0.13.6,<0.14.0"]
+build-backend = "uv_build"
