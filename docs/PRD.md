@@ -16,23 +16,25 @@ Run the app locally as a single operator. Present it through a public repository
 4. Read the answer and inspect the supporting values, tables, charts, and executed SQL or Python. Every quantitative claim points to inspectable evidence. If a requested chart fails, show the supported findings and mark the result as partial. If there is insufficient evidence for an answer, explain what is missing.
 5. Ask a follow-up or manage the Project's Datasets. Prior work remains accessible subject to the source removal rules below.
 
+Each submitted question has its own run state. A linked clarification reply resumes that original run. A new turn creates another run and can carry relevant confirmed context from earlier work.
+
 ## Agent behavior
 
-The router agent makes the first decision for each question.
+A bounded ReAct-style supervisor owns routing, planning, and specialist delegation. It makes the first decision for each new question and chooses the next action after a specialist returns.
 
 | Route | When to use it | Example |
 | --- | --- | --- |
 | **Fresh analysis** | The question needs a new query, calculation, or visualization. Hand it to the SQL or Python workflow. | “Break down Q2 revenue by region” when that breakdown has not been computed. |
-| **Existing context** | A verified prior result, artifact, or dataset profile already answers the question for the relevant sources, filters, and metric. Reuse its evidence. | “What was the Q2 total you just calculated?” |
-| **LLM only** | The question can be answered without making claims about the project's data. | “What does a left join do?” |
+| **Direct answer** | Answer from general knowledge or sufficient verified context. Claims about project data cite computed evidence or profiles. The supervisor can compose the answer in the same model call. | “What does a left join do?” or “What was the Q2 total you just calculated?” |
 
-The context and LLM-only routes finish without starting SQL or Python execution. If evidence is missing or stale for a data question, route to fresh analysis or ask for clarification when the intended calculation is ambiguous. Record the selected route and a short decision label in LangSmith.
 
-When a run needs user input, the Clarification Agent asks one focused question and puts the run in **Waiting for clarification**. The question appears inside the Chat with suggested answers where useful and a **Reply to clarification** field. A reply through the card resumes the waiting run with its recorded Dataset scope. While the run waits, save its progress and release the worker and sandbox. Keep the main composer available and label it **Ask a new question**. Messages from that composer go to the router as new turns.
+The Direct answer path finishes without starting SQL or Python execution. Record general-knowledge and evidence-based answers as separate labels in traces and evaluations. If evidence is missing or stale for a data question, route to fresh analysis or ask for clarification when the intended calculation is ambiguous. Record the selected route and a short decision label in LangSmith.
+
+When a run needs user input, the Clarification Agent asks one focused question and puts the run in **Waiting for clarification**. The question appears inside the Chat with suggested answers where useful and a **Reply to clarification** field. A reply through the card resumes the waiting run with its recorded Dataset scope. While the run waits, save its progress and release the worker and sandbox. Keep the main composer available and label it **Ask a new question**. Messages from that composer go to the supervisor as new turns.
 
 - Profile the data before analysis. Give the agent column types, missing-value counts, relevant date ranges, and candidate join keys in a compact summary.
 - Check join cardinality, analysis grain, units, date windows, and denominators. If a join changes the number of rows, verify that the calculation still counts the intended entity. Correct a clear error and ask a focused question when the intended calculation is ambiguous.
-- Verify reported numbers against computed evidence before responding. Let the reviewer request one correction when a claim fails a check. If the correction cannot be verified, report the supported findings and explain the limitation.
+- For fresh analysis, let the supervisor gather evidence, then have an Answer Specialist draft the response. Require Reviewer approval before displaying it. Missing or incorrect computed evidence returns the run to the supervisor. Sufficient evidence with a draft calculation or conclusion error returns it to the Answer Specialist. Permit at most two review passes in total, including the initial review. If the second review rejects the answer, end with a brief explanation of the unresolved verification issue and omit the rejected analysis. If evidence is missing, explain which claim could not be supported and what evidence is needed, using the reviewer findings. When a review finds both evidence issues and draft errors, evidence issues take precedence and the run returns to the supervisor, subject to the two-pass limit. The reviewer reports only blocking problems with correctness, evidence, or fulfillment of the request. Wording and style preferences remain with the Answer Specialist.
 - Treat instructions found in uploaded cells as data. Enforce access to analysis inputs and artifacts at the SQL and Python tool boundary. Reject attempts to read files outside the run's authorized scope, regardless of what the model requests.
 - Carry agreed metric definitions, filters, source references, and evidence into follow-ups. Show when the user changes an assumption. Discard context that depends on a removed Dataset.
 - For fresh analysis, route simple counts and comparisons to SQL. Use the Python specialist when the analysis or visualization needs it. Measure the accuracy, latency, and cost of the available routes and reviewer settings.
@@ -68,7 +70,7 @@ Finish the design documents before implementation. The order below is agreed. Se
 | Milestone | Completion check |
 | --- | --- |
 | **1A. Grounded SQL** | From the CLI, ingest a CSV fixture, run a sandboxed query, and return an answer linked to the result and executed SQL. Capture a trace. |
-| **1B. Router and follow-ups** | Show all three routes. A matching prior result and a general question finish without tool execution. A changed filter triggers fresh analysis. Demonstrate that the CLI can ask a clarification and resume the same analysis with its original Dataset scope. |
+| **1B. Router and follow-ups** | Show fresh analysis and both forms of Direct answer. A matching prior result and a general question finish without tool execution. A changed filter triggers fresh analysis. Demonstrate that the CLI can ask a clarification and resume the same analysis with its original Dataset scope. |
 | **1C. Python and charts** | Send a computed result to the Python specialist, produce a chart, and show a labeled partial result when chart generation fails. |
 | **1D. Analysis verification and guardrails** | Catch an incorrect count caused by a join, verify the correction, and demonstrate that the tool boundary rejects unauthorized file access. |
 | **1E. Full input coverage** | Import every approved format into the same prepared Dataset workflow and verify representative types and source tables. |
@@ -78,13 +80,15 @@ AWS deployment, continuous deployment, hosted access, public signup, account quo
 
 ## Showcase acceptance
 
+- Verify that an incorrect computed result returns to the supervisor, a draft-only error returns to the Answer Specialist, and a second rejected review explains the unresolved issue. For missing evidence, the response identifies the unsupported claim and needed evidence. The run never performs a third review.
+
 - Reproduce a walkthrough that uploads data, answers a question through SQL or Python, produces a chart, and shows the evidence behind its claims.
 - Demonstrate a materially ambiguous question that shows a clarification card in the Chat. Use the main composer to ask a separate question while the original run waits. Reopen the Chat and answer through the card to resume the same run. Verify that removing a Dataset from the waiting run's scope makes the clarification unavailable.
 - Demonstrate that a failed chart returns a clearly labeled partial result.
 - Import a TSV fixture with the expected column boundaries. Import selected tables from a SQLite fixture, then join one imported table with another ready Dataset in the same Project.
 - Verify that JSON and JSON Lines fixtures with equivalent records produce the same table. Verify that a Parquet fixture preserves dates, numeric types, and null values.
 - Verify on a fixture with repeated events that a join produces the expected distinct-user numerator and denominator. Check that a follow-up retains the agreed filters and that a simple SQL question completes without a Python step.
-- Verify that the router sends a new data question to analysis, reuses a matching verified result without executing tools, and answers a general analytics question without opening a sandbox. Verify that a new filter or removed source makes incompatible prior evidence ineligible for reuse.
+- Verify that the supervisor sends a new data question to analysis, reuses a matching verified result without executing tools, and answers a general analytics question without opening a sandbox. Verify that a new filter or removed source makes incompatible prior evidence ineligible for reuse.
 - Verify three adversarial fixtures. Instructions embedded in a cell are treated as data, a tool attempt to read an out-of-scope file is blocked, and a question the data cannot answer produces a clear explanation of the missing evidence.
 - Demonstrate that a submitted run survives a browser disconnect and that a worker interruption can recover completed work from a checkpoint.
 - Demonstrate that an analysis timeout produces a visible failure state and that an eligible retry uses the original Dataset IDs.
