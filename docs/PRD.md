@@ -52,7 +52,7 @@ When a run needs user input, the Clarification Agent asks one focused question a
 
 ## Build milestones
 
-Finish the design documents before implementation. The order below is agreed. Service boundaries, storage choices, and infrastructure contracts belong in `architecture.md`.
+Finish the design documents before implementation. The order below is agreed. Service boundaries, storage choices, and infrastructure contracts belong in [the architecture documents](architecture/overall.md).
 
 | Phase | Outcome |
 | --- | --- |

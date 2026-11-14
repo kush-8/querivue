@@ -2,7 +2,7 @@
 
 Querivue is an AI engineering portfolio project for asking questions about uploaded datasets. The planned agent routes questions to SQL or Python, reuses verified results for follow-ups, and asks for clarification when an assumption could change the answer. Results will link to inspectable evidence.
 
-The repository currently contains the React and Django starter apps and an importable Python agent package. See the [PRD](docs/PRD.md) for the agreed scope and the [decision log](docs/memory.md) for design decisions.
+The repository currently contains the React and Django starter apps and an importable Python agent package. See the [PRD](docs/PRD.md) for the agreed scope, the [decision log](docs/memory.md) for design decisions, the [overall architecture](docs/architecture/overall.md) for system boundaries and focused component documents, and the [working rules](docs/rules.md) for our collaboration process.
 
 ## Repository layout
 
