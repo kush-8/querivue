@@ -6,6 +6,8 @@ Cross-component requirements are collected here. Component-specific acceptance a
 
 The Python Specialist's round 6 evaluation contract was approved 15 November 2026 in [its component specification](python-specialist.md), including fixtures, must-pass runtime gates, provisional development ceilings, manifests, trace privacy and spending preflight. It is not a measured result or executable configuration: context/model/spending fields, declared quality targets, built identities and live gates remain required. Its round 7 audit explicitly records these dependencies.
 
+The Answer Specialist's round 6 evaluation and integrated readiness audit were approved 15 November 2026 in [its component specification](answer-specialist.md). Its must-pass runtime gates, separate model-quality metrics, frozen comparisons and provisional finite ceilings are approved design contracts, not measured results. Memory/context policy, Reviewer call bounds and computable reserves, complete model/configuration/quality targets/spend caps, built identities and live verification remain gates. Component review is closed; coding and paid evaluations are not authorized by that approval.
+
 ## Supervisor evaluation and observability
 
 Evaluate both answer correctness and agent behavior. Use versioned fixtures with expected calculations and evidence, and check required and forbidden trajectory events for routing, evidence reuse, clarification, prerequisite ordering, retries, and review. Treat safety and recovery invariants as pass/fail gates. Compare the single-agent baseline and specialist configurations on shared fixtures for correctness, completion, active latency, tool calls, retries, and cost. Tune on development cases and use held-out cases for the final comparison.

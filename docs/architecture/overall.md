@@ -11,7 +11,7 @@ Organized 14 November 2026. Confirmed foundations and remaining design work; com
 | [Supervisor](supervisor.md) | Planning, state, delegation, outcomes and review flow. |
 | [SQL Specialist](sql-specialist.md) | Approved SQL contracts, safety, recovery and tabular handoff. |
 | [Python Specialist](python-specialist.md) | Design review closed: rounds 1–7 approved; context/configuration dependencies and runtime gates remain. |
-| [Python Specialist plan](python-specialist-plan.md) | Approved design-review sequence and per-round progress. |
+| [Answer Specialist](answer-specialist.md) | Rounds 1–6 approved; design review closed with explicit readiness gates. |
 | [Evaluation and observability](evaluation-observability.md) | Supervisor evaluation, traces, execution limits, inference and cost. |
 
 ## System boundaries

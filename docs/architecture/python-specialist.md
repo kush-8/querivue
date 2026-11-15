@@ -2,7 +2,7 @@
 
 15 November 2026. **Rounds 1–7 approved; Python Specialist design review closed with explicit gates.** The design has explicit context/configuration dependencies and unrun runtime gates; it is not implementation-ready. No code, paid runs or live verification have been performed.
 
-[Overall architecture](overall.md) · [Review plan](python-specialist-plan.md) · [SQL Specialist](sql-specialist.md) · [Supervisor](supervisor.md)
+[Overall architecture](overall.md) · [SQL Specialist](sql-specialist.md) · [Supervisor](supervisor.md)
 
 ## Existing decisions
 
@@ -396,6 +396,8 @@ Reuse the shared column normalization/collision policy, preserve submitted label
 The published numerical record reuses the SQL evidence object: runtime evidence/artifact UUIDs, producer identity, exact ordered schema/count, bounded preview, Parquet media type/size/SHA-256, opaque storage reference and environment/policy versions. Python producer provenance additionally records operation and attempt, recorded script reference/hash, actual per-call input IDs, the approved action-wide input/dependency union, effective constraints, and any declared random seed/method parameters. A seed is required when the chosen calculation uses randomness; it does not promise identical results across changed environments. Exact ownership/generation transaction mechanics remain round 5.
 
 Reuse SQL's preview encoding: typed column definitions, strings for non-null cells, JSON null for SQL NULL, explicit shortening/truncation metadata and ISO temporal display. Full Parquet values remain authoritative. Exact previews/output caps remain evaluated finite configuration.
+
+Answer Specialist packets also carry the approved stable zero-based artifact-row locator and normalized column ordinal for each visible cell, bound to immutable evidence/artifact identity. Different preview selections preserve these locations. Hidden or shortened values are ineligible for draft value insertion; no runtime citation may infer them from a full-file reference alone.
 
 ### Chart declaration and record
 

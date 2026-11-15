@@ -99,6 +99,8 @@ Approved previews return separate column definitions and row arrays, full row co
 
 Approved duplicate-column handling preserves original labels and ordinals and creates unique artifact column names. Reserve existing unique names before generating deterministic suffixes. Return the mapping to the supervisor and Python.
 
+For the Answer Specialist's approved citation packet, provide each selected visible row's zero-based physical row position in the validated immutable result artifact and the normalized schema's zero-based column ordinals. Preserve these locators across different preview selections; they are not SQL ranking or original-upload row numbers. The packet records visible/shortened cells and artifact identity. Draft citations/value insertion can target only complete cells actually supplied, not guessed hidden rows.
+
 ## Typed values and shared errors
 
 Approved parameter kinds are null, boolean, int64, uint64, decimal, float64, string, date, time, timestamp, and timestamptz.

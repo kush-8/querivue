@@ -80,6 +80,8 @@ Reuse prior evidence for a direct answer only when it supports the requested cla
 
 ### Supervisor execution boundary
 
+The approved Answer Specialist handoff uses immutable draft/review identities and frozen rendered evidence packets. Its draft dependencies include all supplied source-bearing context/evidence, including prior drafts/feedback; final answers also retain approving-review dependencies. Selected citations cannot narrow that dependency union. The runtime serializes source invalidation and final publication through the shared authority and rechecks exact active approval/deadline. See [Answer Specialist](answer-specialist.md).
+
 The supervisor coordinates work without executing SQL or Python itself. It may inspect available dataset metadata and retrieve context. SQL and Python execution belong to their specialists.
 
 ### Specialist state and contracts
