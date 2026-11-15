@@ -10,7 +10,8 @@ Organized 14 November 2026. Confirmed foundations and remaining design work; com
 | [Sandbox execution](sandbox-execution.md) | Execution isolation, storage handoff and the E2B assessment. |
 | [Supervisor](supervisor.md) | Planning, state, delegation, outcomes and review flow. |
 | [SQL Specialist](sql-specialist.md) | Approved SQL contracts, safety, recovery and tabular handoff. |
-| [Python Specialist plan](python-specialist-plan.md) | Approved design-review sequence; Python-specific decisions await review. |
+| [Python Specialist](python-specialist.md) | Design review closed: rounds 1–7 approved; context/configuration dependencies and runtime gates remain. |
+| [Python Specialist plan](python-specialist-plan.md) | Approved design-review sequence and per-round progress. |
 | [Evaluation and observability](evaluation-observability.md) | Supervisor evaluation, traces, execution limits, inference and cost. |
 
 ## System boundaries

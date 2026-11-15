@@ -30,7 +30,9 @@ Working agreement established 14 November 2026. This document captures the colla
 
 ## Subagents
 
-- For research and planning, first produce a high-level plan, then delegate deeper investigation of its points to subagents. This workflow has standing user authorization.
+- Explicitly set `reasoning_effort="medium"` for every subagent, including research, planning, review and implementation. Do not inherit the supervisor's reasoning level.
+- For planning/research, use subagents only for independent tasks where parallel execution is expected to save time. Otherwise work in the parent, including single-topic reviews. Do not delegate merely to obtain another opinion. This restriction does not apply to writing code.
+- For writing code, always delegate implementation to smaller-model subagents, even for one task. The parent supervises, integrates and reviews. Follow the coding model settings below.
 - Give them bounded responsibilities, current decisions, constraints, and a clear deliverable.
 - Have the parent agent reconcile their findings, check sources, and present a coherent recommendation.
 - Record researched recommendations as proposals until approved. Treat capability claims as unverified until the required checks support them.
@@ -62,7 +64,7 @@ Update the relevant documents when decisions are accepted. When a decision chang
 These model settings govern the development agents working on this repository.
 
 - Use gpt-6.1-sol with high reasoning as the coding supervisor.
-- Delegate implementation tasks to gpt-6-sol with medium reasoning by default. Use a smaller available model for simpler, well-scoped tasks when appropriate.
+- Always delegate code-writing tasks to gpt-6-sol with explicit medium reasoning, or a smaller available model with medium reasoning for simpler tasks. Do not implement code directly in the supervisor, including single-task work.
 - Give each coding subagent only the context needed for its bounded task: applicable plan/specification excerpts, relevant architecture and interfaces, affected files, constraints, and acceptance criteria. Start with a fresh context rather than inheriting the full conversation; supply additional targeted context only when needed.
 - During coding, compact context when usage reaches 60% of the available context window, for the supervisor and each subagent. Before compaction, save a concise handoff covering the current task, approved decisions, affected files, completed work, verification results, unresolved issues, and next steps. If the host does not expose context usage or manual compaction, state that limitation and use a fresh agent context with the saved handoff where supported; do not claim the threshold was enforced.
 - The supervisor reviews the submitted code, checks integration and verification results, and ensures the implementation follows the approved plan and architecture.

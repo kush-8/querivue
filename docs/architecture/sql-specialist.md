@@ -178,6 +178,8 @@ Each evidence object supplies an evidence UUID, operation/producer identity, pro
 
 The supervisor receives real bounded rows plus full-result references. Python loads complete authorized tables through those references. Drafting uses relevant evidence. Unseen rows require additional computation rather than extrapolation from a preview.
 
+For Python-produced evidence, preserve the approved conservative action-wide dependency union, including source-derived context and transitive dependencies. A downstream SQL query cannot erase those inherited dependencies by reading only selected columns. Existing evidence referenced unchanged retains its own dependencies. SQL's own parsed-query source extraction remains unchanged. See the Python Specialist lineage contract.
+
 ## Acceptance and evaluation
 
 The following acceptance matrix is approved.
