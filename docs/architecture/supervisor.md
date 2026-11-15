@@ -80,6 +80,10 @@ Reuse prior evidence for a direct answer only when it supports the requested cla
 
 ### Supervisor execution boundary
 
+Reviewer round 4 uses nonrefundable durable pass reservations and immutable outcomes. Bounded recovery/repair precedes terminal failure; a terminal failed/incomplete review stops the flow on either pass rather than consuming pass 2 to repeat it. Its provisional run ceiling is five physical requests with one shared retry, within two 30-second elapsed passes; drafting admission retains 60 seconds for reviews plus 5 for finalization and configured worst-case token/cost exposure. These are intersecting unmeasured ceilings, not guaranteed retry time. See [Reviewer](reviewer.md) for complete accounting and gates.
+
+Answer Specialist and Reviewer are independent agents deciding from their explicit supplied context and role instructions. The runtime passes bounded typed handoffs; it does not merge their model conversations or expose unsupplied internal working state/history. Drafts and feedback do not become computed evidence merely through handoff. Each agent reports context gaps rather than presuming missing facts; the Reviewer forms its own verdict.
+
 The approved Answer Specialist handoff uses immutable draft/review identities and frozen rendered evidence packets. Its draft dependencies include all supplied source-bearing context/evidence, including prior drafts/feedback; final answers also retain approving-review dependencies. Selected citations cannot narrow that dependency union. The runtime serializes source invalidation and final publication through the shared authority and rechecks exact active approval/deadline. See [Answer Specialist](answer-specialist.md).
 
 The supervisor coordinates work without executing SQL or Python itself. It may inspect available dataset metadata and retrieve context. SQL and Python execution belong to their specialists.

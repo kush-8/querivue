@@ -71,13 +71,21 @@ These model settings govern the development agents working on this repository.
 - Bring any new design or implementation decision to the user before writing dependent code. Carry forward decisions already approved.
 - Select the requested model and reasoning settings when creating coding agents. If the host cannot switch the current supervisor model, disclose that limitation and obtain the user's direction before beginning coding under different settings.
 
+## Coding and frontend skills
+
+- For coding, use [Superpowers](plugin://superpowers@openai-curated-remote) for the applicable design, implementation, debugging and verification workflow; [mattpocock-skills](plugin://mattpocock-skills@mattpocock) for applicable domain/interface design, testing and review; [andrej-karpathy-skills](plugin://andrej-karpathy-skills@karpathy-skills) for focused changes, explicit assumptions and verifiable outcomes; and [Ponytail](plugin://ponytail@ponytail) for the smallest complete implementation without unnecessary code or dependencies.
+- For frontend design, use [frontend-design](plugin://frontend-design@claude-plugins-official) for visual direction and implementation, [Impeccable](plugin://impeccable@openai-curated-remote) for design quality and refinement, [Taste Skill](plugin://taste-skill@taste-skill) for frontend design guidance, [gsap-skills](plugin://gsap-skills@gsap-skills) for applicable motion, and shadcn components/tools. Reuse the project's existing components and dependencies; use animation where it serves the interface rather than adding it solely to invoke a tool.
+- Select the relevant skills within these plugins and read their `SKILL.md` instructions before applying them. Carry forward the user's approved scope, per-contract reviews, smaller-model coding delegation and explicit medium subagent reasoning. Do not run every unrelated skill in a plugin or add unnecessary workflows, packages or approval requests. Report unavailable capabilities and use the best available fallback without claiming they ran.
+
 ## Implementation and verification
 
+- Use the code-review-graph skill to narrow repository reading to relevant files and symbols. For code relationships and impact, start with the smallest useful graph query, then inspect the actual affected source and relevant tests; expand only when evidence requires it. For prose, literal text or files the graph does not index, use targeted `rg` searches and focused reads. Avoid broad repository scans or reading unrelated files. Graph results guide scope; source remains authoritative, and missing/unresolved relationships require targeted source checks.
 - Build the smallest complete implementation that satisfies the approved specification.
 - Reuse existing code and dependencies where appropriate.
 - Cover the affected callers, configuration, interfaces, and failure paths.
 - Run checks appropriate to the change. Use meaningful tests and evaluations derived from the specification.
 - Report what changed, what was verified, and what remains unresolved. Distinguish documented support from measured behavior.
+- At the end of every task that changes repository files, after the final edits and checks, update the local code-review graph and verify its status once before reporting completion. This is standing authorization for local incremental graph maintenance; use the code-review-graph skill and prefer its MCP tools. Skip updates when no repository files changed. If updating fails or is unavailable, report the gap rather than claim the graph is current. This does not authorize external embeddings or unrelated graph maintenance.
 
 ## Evaluation and cost
 
