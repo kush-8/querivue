@@ -572,7 +572,7 @@ Three parallel medium-reasoning audits independently examined contracts, lifecyc
 
 The specification can guide subsequent component planning and deterministic fixture/harness preparation. It is not permission to implement unresolved context behavior or run generated Python with an unverified profile. Follow the project-wide design-first sequence before substantive implementation. Code-writing tasks always go to smaller-model subagents at explicit medium reasoning; planning/research delegation is used only when independent parallel tasks save time.
 
-The user approved this final packet on 15 November 2026, closing the Python component's design-review rounds with these clarifications and assigned dependencies. This does not erase the readiness gates or claim that PRD milestones 1C, 1D or 1F have been implemented or passed. The broader memory/component designs remain necessary before the agreed implementation phase.
+The user approved this final packet on 15 November 2026, closing the Python component's design-review rounds with these clarifications and assigned dependencies. This does not erase the readiness gates or claim that PRD milestones 1C, 1D or 1G have been implemented or passed. The broader memory/component designs remain necessary before the agreed implementation phase.
 
 ## Historical research findings
 

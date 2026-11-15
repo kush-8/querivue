@@ -1,6 +1,6 @@
 # Reviewer design
 
-15 November 2026. **Agenda and rounds 1–5 approved; round 6 integrated audit proposal awaiting review.** The user also explicitly approved context-only independent agents. Inherited Answer/supervisor handoff rules below remain approved. No coding or live evaluation is authorized.
+15 November 2026. **Agenda and rounds 1–6 approved; component design review closed with explicit readiness gates.** The user also explicitly approved context-only independent agents. Inherited Answer/supervisor handoff rules below remain approved. No coding or live evaluation is authorized.
 
 [Overall architecture](overall.md) · [Answer Specialist](answer-specialist.md) · [Supervisor](supervisor.md) · [Evaluation and observability](evaluation-observability.md)
 
@@ -309,11 +309,11 @@ Forecast every role × case × repetition, retries, uncertainty, cache/cold assu
 
 The user approved fixtures, must-pass runtime gates, failure-inclusive semantic denominators, actionable finding/routing scores, blind frozen comparisons and reproducibility/spending prerequisites. The shared evaluation contract is updated. This approval does not authorize paid runs, code or a measured readiness claim. Round 6 remains the integrated audit and closure; memory/context policy, exact configuration/targets/spend caps and live checks remain explicit gates.
 
-## Round 6 proposal: integrated audit and closure
+## Round 6: approved integrated audit and closure
 
 This is a document consistency audit against the approved Answer, supervisor and shared evaluation contracts. It is not execution evidence. The parent performs this single integrated check; no additional second-opinion agent is needed.
 
-### Proposed binding and timing clarifications
+### Approved binding and timing clarifications
 
 1. **Frozen review versus invocation payload:** `review_input_packet_hash` binds the immutable base review packet: request, candidate, evidence/context, obligations, authorization and linked revision material. It excludes its own hash field. Each model invocation additionally has a request digest binding that base hash, prompt/configuration and exact invocation-local messages, including any malformed response/repair diagnostics. A repair changes that invocation digest, not the review packet, candidate, pass or allowed evidence. Save both identities. No new source facts or another agent's private history enter through repair. The shared runtime must freeze compatible canonical typed serialization/hashing before dependent code; approval here does not choose an unbuilt codec.
 2. **Capacity versus pass reservation:** before drafting, reserve future review token/cost/time capacity without allocating a logical pass or starting its clock. Only successful admission and atomic reservation of a particular `review_id` consume its nonrefundable pass and start its persisted 30-second elapsed deadline. A second pass starts only when its revised candidate is admitted/reserved. Revision/between-pass time still consumes the enclosing run deadline and relevant role budgets.
@@ -344,6 +344,6 @@ The component contract keeps model judgment separate from runtime authority and 
 | Runnable evaluation | Exact compatible models/provider settings/accounting; built runtime/renderer/dependency identities; versioned fixtures/gold/splits/rubric/judge settings; repetitions/concurrency; predeclared quality/completion targets; dated rates and finite numeric action/run/suite spend caps plus applicable authorization. |
 | Enablement | Actual identity/admission/formatting/authorization checks, recovery/fencing, nonrefundable counters, aggregate limits/reserves/deadlines, full lineage/source deletion/publication and hosted trace/error serialization must pass. Measure semantic quality, completion, latency and total cost under the frozen evaluation protocol. |
 
-No code, live model/provider call, fault-injection test or paid evaluation has run for this review. No runtime milestone has passed. Current inventory contains no temporary plan Markdown files; retain this specification and the decision log and recheck links/statuses when closing.
+No code, live model/provider call, fault-injection test or paid evaluation has run for this review. No runtime milestone has passed. Final cleanup found no temporary plan Markdown files; approved specifications and the decision log are retained. Shared links/statuses are updated.
 
-Approval would accept the three clarifications and close Reviewer component design review with these explicit gates. It authorizes corresponding shared-contract/status updates and final cleanup, not an implementation-ready claim, coding, paid tests or relaxed budgets. Next recommended design dependency is the shared memory/context policy for supervisor, Answer and Reviewer.
+The user approved the three clarifications and closed Reviewer component design review with these explicit gates. Shared-contract/status updates and final cleanup are complete. Approval does not declare implementation-ready or authorize coding, paid tests or relaxed budgets. Next recommended design dependency is the shared memory/context policy for supervisor, Answer and Reviewer.

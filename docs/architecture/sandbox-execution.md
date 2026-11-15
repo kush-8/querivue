@@ -2,7 +2,7 @@
 
 [Overall architecture](overall.md) · [PRD](../PRD.md) · [Decision log](../memory.md)
 
-This document retains the ingestion and analysis execution decisions and dated provider assessment. For SQL-specific execution and recovery, the later approved [SQL Specialist contract](sql-specialist.md) governs details that earlier assessment text describes as open. Provider prices below are historical estimates, not newly verified rates.
+This document retains the ingestion and analysis execution decisions and dated provider assessment. The later approved [SQL Specialist contract](sql-specialist.md) and [Python Specialist contract](python-specialist.md) govern their execution, policy and recovery details where earlier assessment text describes them as open. Provider enforcement remains subject to their live gates. Provider prices below are historical estimates, not newly verified rates.
 
 ## Execution boundary
 

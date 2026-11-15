@@ -210,7 +210,7 @@ Retain detailed SQL, parameter values, rows, tool/model messages and source-bear
 
 Before implementation is accepted, verify AST/DuckDB agreement, parameter and result precision, locked attachment/evidence/export behavior, no outbound data exchange, read-only inputs, action write boundaries, process-tree termination, shared-resource exhaustion, path handling, mailbox recovery, and provider acceptance of structured outputs.
 
-Exact prompt wording belongs to the final prompt-design round. Exact models and numerical values belong to evaluation. Message compaction belongs to memory design. Backend job delivery, Postgres persistence, Redis checkpoints and frontend transport belong to their agreed development phases, with the contracts above required at integration.
+Exact prompt wording belongs to the final prompt-design round. Exact models and numerical values belong to evaluation. Message compaction belongs to memory design. Persistent Redis-backed checkpoints and fresh-process recovery belong to the standalone agent milestone 1E. Backend job delivery, Postgres persistence, worker checkpoint integration and frontend transport belong to later application phases, with the contracts above required at integration.
 
 Live DuckDB, Arrow, parser and E2B enforcement checks have not run.
 

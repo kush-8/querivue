@@ -1,0 +1,50 @@
+# Project status review
+
+Reviewed 15 November 2026 against the PRD, architecture documents, decision log and current source. This is a status audit, not approval of new contracts or implementation.
+
+## Current position
+
+The project has approved product foundations and substantial specialist designs. SQL is approved; Python, Answer and Reviewer component design reviews are closed with explicit prerequisites and unrun gates. The complete agent/system design is not finished, and approved designs are not evidence of working functionality.
+
+Implementation remains the starter scaffold: [agent entry](../agent/src/querivue_agent/__init__.py) exposes `hello()`, [agent configuration](../agent/pyproject.toml) has no runtime dependencies or CLI entry, [Django URLs](../backend/config/urls.py) expose only admin, starter settings use SQLite, and [React App](../frontend/src/App.tsx) is the Vite counter screen. The [README](../README.md) accurately describes the apps as separate starters. No implemented PRD agent milestone 1A–1G or completed integrated build phase 1–8 was found.
+
+## Remaining work by owner
+
+| Area | Status and remaining work |
+| --- | --- |
+| Product scope | Baseline approved in [PRD](PRD.md). Local single operator, inspectable evidence, independent agent package and phased build are settled. Showcase dataset/question and final walkthrough remain later choices. |
+| Shared memory/context | Next design dependency. Define Chat versus Project scope, recent turns and summaries, confirmed definitions/filters, evidence selection/reuse, revision packets, bounded context/compaction, provenance and source-removal invalidation. Distinguish conversational memory, durable records and graph checkpoints. Python/Answer/Reviewer explicitly depend on this. |
+| Supervisor and Clarification | Finish concrete task/control/action/outcome wrappers and serialization; Direct answer contract; clarification request/reply/resume identity and transitions; prerequisite tracking, retries/replay/checkpoints, completion and no-progress bookkeeping; shared budget/concurrency admission. Existing specialist payloads and two-review policy are already approved. See [Supervisor](architecture/supervisor.md). |
+| Shared runtime and storage contracts | Specify canonical typed packet encoding/hash boundaries, exact durable run/task/action/attempt/invocation/review/error records, ownership and transitions, idempotent handoff, artifact publication/access/deletion and ledger/checkpoint reconciliation. SQLite standalone authority and moving that authority together to Postgres are settled; Persistent Redis-backed LangGraph checkpoints and fresh-process CLI recovery are standalone agent milestone 1E; checkpoint state must not become a competing publication authority. |
+| SQL Specialist | Approved design. Implement and verify the SQLGlot positive policy, pinned DuckDB runner/connection lock-down, typed evidence, recovery/publication fencing and analytical checks. Exact compatible builds/configuration and live safety/recovery gates remain. See [SQL](architecture/sql-specialist.md). |
+| Python Specialist | Design review closed. Implement artifact-only computation/chart tools and approved isolation target; verify exact E2B template feasibility, cgroup/namespace/syscall/FD/process-tree enforcement, typed values/PNG normalization, budgets and recovery. Missing enforceable isolation blocks execution. See [Python](architecture/python-specialist.md). |
+| Answer Specialist | Design review closed. Implement independent bounded packet drafting, typed spans/value rendering, immutable drafts, partial authorization and review handoff; verify formatting, lineage and publication. Broader context/runtime prerequisites remain. See [Answer](architecture/answer-specialist.md). |
+| Reviewer | Design review closed. Implement independent full-packet review, exact hashes/findings/routing, nonrefundable passes, immutable verdicts, bounded repair/failure and reserve accounting. Numerical limits are candidates, not measured product limits. See [Reviewer](architecture/reviewer.md). |
+| Ingestion | Behavioral choices are extensive but detailed design remains: importer/library choice, catalog/naming/type/date/timezone conversions, profile production, import attempt identity, staged retry/publication/cleanup, and staging security. Verify all seven approved formats and representative source tables/types. See [ingestion](architecture/data-ingestion.md). |
+| Sandbox integration | Target architecture selected; provider feasibility and exact enforcement are not proven. Finish pinned manifests, resource allocations, file transfer/artifact collection, reconnect/termination/error behavior and compatible environment versions, then run authorized readiness checks. Historical cost estimates are not current pricing. See [sandbox](architecture/sandbox-execution.md). |
+| Prompts, models and evaluation | Policies, fixture families and scoring contracts exist. Author actual fixtures/oracles/rubrics and role prompts, select exact candidate model/provider settings, freeze configuration/splits/targets/judge settings, establish finite spend caps and verified rates, then run development and held-out comparisons with cost reconciliation. No paid run is authorized by design approval. See [evaluation](architecture/evaluation-observability.md). |
+| Backend, workers and checkpoints | Detailed application schema/storage/API contracts, worker/broker configuration (Celery with Redis is proposed), job delivery, run/retry/clarification transitions, progress polling versus streaming, source deletion and worker integration with the agent's existing persistent recovery contract, and Docker Compose/environment setup remain. Integrate against the standalone agent contract in the PRD's phase order. |
+| Frontend and evidence UX | Design and implement Project/Dataset management, import confirmation/errors, Chat/clarification cards, progress/retry/partial states and inspectable values/tables/charts/code. Apply the approved frontend skill/tool preferences. No product interface is implemented yet. |
+| Integration, CI and showcase | Verify upload-to-answer, browser disconnect, duplicate jobs, replacement/deletion, limits/timeouts and recovery. Then implement CI in its agreed phase and publish reproducible evaluation plus the under-five-minute walkthrough. Hosting/public signup/deployment extras remain outside the baseline. |
+
+## Audit findings and reconciliation
+
+1. **Closed components do not close shared design.** Supervisor task/control contracts and memory/context remain genuinely open; specialist approval must not be treated as whole-agent implementation readiness. Reviewer round 6 explicitly assigns memory and canonical runtime prerequisites before dependent code.
+2. **Some open-list wording was stale.** Supervisor/overall text still described Answer handoff or review policy as entirely open. Those portions are settled by later component specs; only the shared orchestration and outstanding controls remain. Status wording is corrected without changing behavior. The sandbox summary now explicitly defers both SQL and Python details to their later specs.
+3. **The latest review-budget contracts align.** Two logical reviews; at most five physical Reviewer requests/run; 60 seconds for review plus 5 for finalization; initial review exposure of 163,840 input / 20,480 generated tokens. Capacity reservation is distinct from nonrefundable logical-pass reservation. Terminal operational failure stops the flow; it is not another assessment opportunity. All numerical ceilings remain subject to run allocations and measurement.
+4. **The latest source-removal contracts align.** Unfinished pinned-scope invalidation remains separate from completed-output dependencies. Python uses all supplied source-bearing action inputs; Answer/review use the complete supplied source-bearing context, including retained predecessors/feedback. Source tombstones and publication share a transactional authority. Selected citations cannot erase inherited dependencies.
+5. **No new architecture choice was required by this audit.** Remaining decisions are assigned above. No component was reopened, no provider capability was assumed verified, and no measured quality or completion percentage is claimed.
+
+## Recommended next sequence
+
+1. Review shared memory/context design.
+2. Finish Supervisor/Clarification/Direct answer and shared runtime contracts, reconciling context and existing specialist handoffs.
+3. Finish ingestion and sandbox integration design needed by the standalone CLI, including profile/evidence preparation.
+4. Prepare role prompts, an approved implementation plan and finite verification/evaluation configuration. Obtain any required live-spend authorization for feasibility checks; record results rather than infer support from design documents.
+5. Implement the standalone agent milestones 1A–1G, followed by the remaining application phases in the [PRD order](PRD.md#build-milestones). Evaluate candidate configurations once the required implementation, manifests and caps exist.
+
+This sequence is a recommendation for organizing existing work, not authorization to skip per-contract reviews or start coding. Application design can be prepared separately where independent, while preserving the agreed build order.
+
+## Review limits
+
+Reviewed all current architecture documents, PRD/rules/decision log and the relevant source/configuration. Two independent medium-reasoning document reviews covered specialist and foundation scopes. CRG MCP scoped implementation inspection; actual source confirmed the scaffold. Checked documentation links and whitespace after updates. No runtime tests, provider feasibility checks, paid evaluations or fresh price verification ran; these remain required evidence before readiness claims.

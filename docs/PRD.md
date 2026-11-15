@@ -58,11 +58,11 @@ Finish the design documents before implementation. The order below is agreed. Se
 
 | Phase | Outcome |
 | --- | --- |
-| **1. Standalone agent** | Run and evaluate the agent through a CLI. |
+| **1. Standalone agent** | Run and evaluate the agent through a CLI, including persistent Redis-backed checkpoints and recovery across process restarts without Django. |
 | **2. Database and storage** | Persist Projects, Datasets, Chats, run records, and saved outputs. |
 | **3. Backend APIs** | Exercise Project, upload, Chat, run submission, status, and result contracts through Django. |
 | **4. Background workers** | Complete a real upload-to-answer flow that survives closing the browser. |
-| **5. Persistent checkpoints** | Use Redis to recover completed agent work after a worker interruption. |
+| **5. Worker checkpoint integration** | Integrate the standalone agent's persistent checkpoints with background job delivery and worker restart recovery. Reuse the agent recovery contract rather than introduce checkpointing for the first time here. |
 | **6. Backend integration** | Verify replacement, deletion, limits, timeouts, retry, and duplicate job delivery. |
 | **7. Frontend** | Complete the React workflow for Projects, uploads, Chats, progress, and evidence. |
 | **8. Continuous integration** | After the local app is complete, set up GitHub Actions to verify the agent, backend, and frontend. |
@@ -75,8 +75,11 @@ Finish the design documents before implementation. The order below is agreed. Se
 | **1B. Router and follow-ups** | Show fresh analysis and both forms of Direct answer. A matching prior result and a general question finish without tool execution. A changed filter triggers fresh analysis. Demonstrate that the CLI can ask a clarification and resume the same analysis with its original Dataset scope. |
 | **1C. Python and charts** | Send a computed result to the Python specialist, produce a chart, and show a labeled partial result when chart generation fails. |
 | **1D. Analysis verification and guardrails** | Catch an incorrect count caused by a join, verify the correction, and demonstrate that the tool boundary rejects unauthorized file access. |
-| **1E. Full input coverage** | Import every approved format into the same prepared Dataset workflow and verify representative types and source tables. |
-| **1F. Reproducible evaluation** | Run the same suite against the baseline and specialist configurations. Report routing accuracy, answer correctness, latency, cost, and outcomes on adversarial cases. |
+| **1E. Persistent checkpoints and recovery** | Persist LangGraph checkpoints in Redis from the standalone CLI. Interrupt the agent process and resume the same run in a fresh process using its original Dataset scope, durable ledger and saved artifacts. Reuse committed results and review records, preserve consumed budgets/pass counts, and verify removed sources or expired deadlines cannot be revived. No Django or application worker is required for this milestone. |
+| **1F. Full input coverage** | Import every approved format into the same prepared Dataset workflow and verify representative types and source tables. |
+| **1G. Reproducible evaluation** | Run the same suite against the baseline and specialist configurations, including persistent recovery cases. Report routing accuracy, answer correctness, latency, cost, and outcomes on adversarial cases. |
+
+Persistent checkpointing is an agent capability delivered in phase 1, before application integration. Redis may run as a supporting service for the CLI. Phase 5 later exercises the same recovery behavior through worker/job delivery. Checkpoints restore graph progress; separately persisted artifacts and the transactional ledger remain authoritative for committed results, source validity, ownership and accounting.
 
 AWS deployment, continuous deployment, hosted access, public signup, account quotas, a manual Stop action, a separate Streamlit interface, an LLM gateway, and semantic caching are outside the initial scope.
 
