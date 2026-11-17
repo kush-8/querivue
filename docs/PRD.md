@@ -16,16 +16,18 @@ Run the app locally as a single operator. Present it through a public repository
 4. Read the answer and inspect the supporting values, tables, charts, and executed SQL or Python. Every quantitative claim points to inspectable evidence. If a requested chart fails, show the supported findings and mark the result as partial. If there is insufficient evidence for an answer, explain what is missing.
 5. Ask a follow-up or manage the Project's Datasets. Prior work remains accessible subject to the source removal rules below.
 
-Each submitted question has its own run state. A linked clarification reply resumes that original run. A new turn creates another run and can carry relevant confirmed context from earlier work.
+Each admitted question has its own run state. An admitted linked analytical clarification reply resumes that original run. An admitted new turn creates another run and can carry relevant confirmed context from earlier work.
+
+An entry gate screens questions, linked replies and uploads for validity/security, safety and allowed-topic relevance before workflow admission. Allow data analysis/visualization, analytical follow-ups, analytics/SQL concepts and Querivue help. Reject unrelated or abusive requests; relevant safe requests with missing evidence still reach the supervisor. Entry-policy clarification is separate from the supervisor's analytical clarification. Incomplete assessment withholds admission. Full uploads stay out of semantic model requests, and instruction-like cells remain data. Policy and mechanism are approved in [Agent integration](architecture/agent-integration.md); exact configuration and live verification remain gates.
 
 ## Agent behavior
 
-A bounded ReAct-style supervisor owns routing, planning, and specialist delegation. It makes the first decision for each new question and chooses the next action after a specialist returns.
+A bounded ReAct-style supervisor owns routing, planning, and specialist delegation. It makes the first planning decision after entry admission and chooses the next action after a specialist returns. The tool-free entry assessor may make the first model call.
 
 | Route | When to use it | Example |
 | --- | --- | --- |
 | **Fresh analysis** | The question needs a new query, calculation, or visualization. Hand it to the SQL or Python workflow. | “Break down Q2 revenue by region” when that breakdown has not been computed. |
-| **Direct answer** | Answer from general knowledge or sufficient verified context. Claims about project data cite computed evidence or profiles. The supervisor can compose the answer in the same model call. | “What does a left join do?” or “What was the Q2 total you just calculated?” |
+| **Direct answer** | Answer relevant analytics/SQL/statistics or Querivue-help questions from general knowledge or sufficient verified context. Claims about project data cite computed evidence or profiles. The supervisor can compose the answer in the same model call. | “What does a left join do?” or “What was the Q2 total you just calculated?” |
 
 
 The Direct answer path finishes without starting SQL or Python execution. Record general-knowledge and evidence-based answers as separate labels in traces and evaluations. If evidence is missing or stale for a data question, route to fresh analysis or ask for clarification when the intended calculation is ambiguous. Record the selected route and a short decision label in LangSmith.

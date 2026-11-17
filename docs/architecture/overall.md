@@ -10,7 +10,7 @@ Organized 14 November 2026. Confirmed foundations and remaining design work; com
 | [Data ingestion](data-ingestion.md) | Upload preparation, import confirmation, formats and immutable dataset publication. |
 | [Sandbox execution](sandbox-execution.md) | Execution isolation, storage handoff and the E2B assessment. |
 | [Supervisor](supervisor.md) | Planning, state, delegation, outcomes and review flow. |
-| [Agent graph, memory and integration](agent-integration.md) | Agenda and round 1 graph boundaries approved; shared state/identities next. |
+| [Agent graph, memory and integration](agent-integration.md) | Agenda, rounds 1–2/evidence registry and entry guardrails 2B1–2B2 approved, including intake records and candidate limits; memory/context policy next. |
 | [SQL Specialist](sql-specialist.md) | Approved SQL contracts, safety, recovery and tabular handoff. |
 | [Python Specialist](python-specialist.md) | Design review closed: rounds 1–7 approved; context/configuration dependencies and runtime gates remain. |
 | [Answer Specialist](answer-specialist.md) | Rounds 1–6 approved; design review closed with explicit readiness gates. |

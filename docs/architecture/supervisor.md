@@ -24,15 +24,17 @@ A task groups independent actions that may run concurrently. The supervisor can 
 
 Each submitted question has its own run state. A linked clarification reply resumes that original run. A new turn creates another run and can carry relevant confirmed context from earlier work.
 
-The supervisor can return a Direct answer using general knowledge or verified context in its current model call. Data claims require evidence. Trace the two forms separately.
+The supervisor can return a Direct answer using relevant analytics/SQL/statistics or Querivue-help knowledge or verified context in its current model call. Data claims require evidence. Trace the two forms separately. Approved entry screening precedes admission and linked-reply resume; its entry-policy clarification is separate from this supervisor's analytical clarification. Under approved [integration round 2B2](agent-integration.md), the tool-free assessor may make the first model call; supervisor remains the first planning agent. Linked replies carry their exact question context; supervisor-to-Clarification-Agent handoffs do not add a separate semantic assessment.
 
-Use a bounded ReAct-style supervisor implemented with LangGraph. The supervisor owns initial routing, analysis planning, and delegation. It can answer general questions, reuse verified evidence, or invoke SQL and Python specialists for fresh analysis. This supersedes the earlier separate Router Agent design.
+Use a bounded ReAct-style supervisor implemented with LangGraph. The supervisor owns initial routing, analysis planning, and delegation. It can answer relevant analytics/Querivue questions, reuse verified evidence, or invoke SQL and Python specialists for fresh analysis. This supersedes the earlier separate Router Agent design.
 
 Specialists return observations to the supervisor. For fresh analysis, once it has gathered enough information, an Answer Specialist drafts the response from the evidence. The draft must pass the Reviewer before display. Missing or incorrect computed evidence returns the run to the supervisor. If evidence is sufficient but the draft has a calculation or conclusion error, return it to the Answer Specialist. Allow at most two review passes in total across the run, including the initial review. If the second review rejects the answer, end with a brief explanation of the unresolved verification issue and omit the rejected analysis. If evidence is missing, explain which claim could not be supported and what evidence is needed, using the reviewer findings. This supersedes the single-correction policy. When a review finds both evidence issues and draft errors, evidence issues take precedence and the run returns to the supervisor, subject to the two-pass limit. The reviewer reports only blocking problems with correctness, evidence, or fulfillment of the request. Wording and style preferences remain with the Answer Specialist. The Clarification Agent suspends work when user input is needed. Code enforces source access, budgets, and completion checks.
 
 ```mermaid
 flowchart TD
-    Q[New question and context] --> S[Supervisor]
+    Q[New question] --> IG[Entry screening]
+    IG -->|Accepted: create run and prepare context| S[Supervisor]
+    IG -->|Reject, clarify or unavailable| IN[Intake notice or entry clarification]
     S -->|Knowledge or existing evidence sufficient| D[Direct answer]
     D --> O[Response]
     S -->|Query task| SQL[SQL specialist]
@@ -41,7 +43,9 @@ flowchart TD
     PY -->|Results and artifacts| S
     S -->|Material ambiguity| CL[Clarification Agent]
     CL --> W[Save progress and wait]
-    W -->|Linked reply| S
+    W -->|Linked analytical reply| RG[Entry screening with exact linked context]
+    RG -->|Accepted: resume same run| S
+    RG -->|Reject, clarify or unavailable: keep waiting| IN
     S -->|Enough information for fresh analysis| A[Answer Specialist]
     A --> R[Reviewer: maximum two passes]
     R -->|Approved| G[Final completion checks]
@@ -64,7 +68,7 @@ The runtime supplies run_context before invoking the agent; it is read-only to t
 | question | string | Original user question, preserved unchanged. |
 | eligible_dataset_ids | list of UUIDs | Dataset snapshot IDs pinned at submission. |
 
-UUID version, wire serialization, and CLI identifier conventions remain open. Other proposed supervisor state fields remain subject to their individual design discussions.
+Integration round 2 selects UUIDv4 for new runtime UUID identities and canonical lowercase hyphenated UUID wire strings, preserving valid supplied IDs. CLI input conventions and concrete control-task serialization remain later contracts; parent state ownership is approved in the integration specification.
 
 ### Supervisor control decisions
 
@@ -91,6 +95,10 @@ Answer Specialist and Reviewer are independent agents deciding from their explic
 The approved Answer Specialist handoff uses immutable draft/review identities and frozen rendered evidence packets. Its draft dependencies include all supplied source-bearing context/evidence, including prior drafts/feedback; final answers also retain approving-review dependencies. Selected citations cannot narrow that dependency union. The runtime serializes source invalidation and final publication through the shared authority and rechecks exact active approval/deadline. See [Answer Specialist](answer-specialist.md).
 
 The supervisor coordinates work without executing SQL or Python itself. It may inspect available dataset metadata and retrieve context. SQL and Python execution belong to their specialists.
+
+### Shared parent state
+
+Approved integration round 2 defines input, context, evidence, messages, pending_tasks, current_task, outcomes, execution_status and output. Runtime maintains evidence[evidence_id] as the run registry; outcomes retain approved terminal results, durable result references and selected evidence/chart IDs. The supervisor receives actual bounded typed values in derived context.evidence, not only IDs. Private child state is not merged into the parent. Task/action/expected-attempt/owner guards preserve siblings and reject stale/conflicting writes; checkpoints are projections of durable authority. New runtime UUID identities use UUIDv4/canonical wire strings while supplied IDs retain their identities. Full common record rules are in [agent integration](agent-integration.md); complete control schemas and memory/recovery APIs remain later rounds.
 
 ### Specialist state and contracts
 
