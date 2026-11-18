@@ -7,26 +7,26 @@ Working agreement established 14 November 2026. This document captures the colla
 - Treat Querivue as a personal AI engineering portfolio project. Keep decisions aligned with the agreed PRD and local-first development phases.
 - Follow spec-driven development. Design the project and its components before substantive implementation. Derive acceptance criteria and verification from the approved specifications. TDD is optional.
 - Carry forward existing approvals and constraints. Raise a consequential change when new evidence affects an agreed decision, and update the specification before implementing that change.
-- Present design and implementation choices for user review before work that depends on them. During coding, bring gaps or changes in the approved plan to the user for a decision.
+- Review consequential choices before dependent implementation. Reversible design-document edits are preauthorized under the review workflow below; coding scope and external/paid actions still require their applicable authorization.
 
 ## Design discussions
 
-- Discuss one major topic or contract at a time, with enough detail to understand its complete behavior.
-- Group closely related choices into one reviewable proposal. Group independent questions in a numbered round when the user requests a broader review.
+- Plan at the component or integration-phase level, grouping related contracts into one coherent review packet. Split only when a consequential choice genuinely blocks dependent work or the user requests a narrower discussion.
 - Explain the recommendation, relevant alternatives, and practical tradeoffs. Use concrete examples and flowcharts when they help.
 - Reuse decisions already recorded. Reopen them when new evidence or a user instruction changes their basis.
 - Research facts in the project and official documentation. Ask the user about preferences and consequential tradeoffs.
 - Keep agreed decisions, proposals, open questions, and unverified claims visibly distinct.
 - Design prompts after the component designs are complete. Refine models, prompts, and numerical limits through evaluation.
+- Stop planning a component when consequential interfaces, ownership, failure paths and risks are settled and remaining work is assigned to implementation or evaluation. Move to authorized implementation rather than adding speculative rounds; tune candidate numerical limits through measured evaluation. This stopping rule does not itself authorize coding or paid runs.
 
-## Approvals
+## Review and document-edit authorization
 
-- Ask for user approval or review of every new design decision. Use approval pop-ups with yes/no choices and room for written suggestions.
-- Present the concrete behavior or contract being approved. Keep dependent decisions for a later round.
-- Interpret approval within the scope of the displayed proposal. A request to revise leaves that proposal open.
-- Wait for an actual answer before advancing work that depends on that decision.
-- Follow the user's latest instruction about review pace, including one-topic-at-a-time discussion.
-- Proceed with work already authorized without repeating approval requests.
+- Use ordinary chat for design review and user replies; do not use approval pop-ups.
+- The user preauthorizes reversible proposal edits directly in the relevant documents as the current working design. Write the design once, summarize consequential choices/tradeoffs in chat and incorporate objections or requested changes in place.
+- Standing document-edit authorization is not a claim that the user explicitly reviewed every new choice, nor authorization for coding, paid runs or external effects. Identify unresolved consequential choices and await any answer necessary for dependent implementation.
+- Chat approval needs a short acknowledgment, not a second rewritten specification or a separate file-changing approval task. Update status/decision tracking with the next substantive edit or phase handoff.
+- Revise or undo only our own identified proposal changes, preserving unrelated user/agent edits. Use a targeted diff/patch; avoid whole-file or workspace rollback.
+- Carry forward existing approvals and scope; do not ask again for already authorized work.
 
 ## Subagents
 
@@ -34,8 +34,9 @@ Working agreement established 14 November 2026. This document captures the colla
 - For planning/research, use subagents only for independent tasks where parallel execution is expected to save time. Otherwise work in the parent, including single-topic reviews. Do not delegate merely to obtain another opinion. This restriction does not apply to writing code.
 - For writing code, always delegate implementation to smaller-model subagents, even for one task. The parent supervises, integrates and reviews. Follow the coding model settings below.
 - Give them bounded responsibilities, current decisions, constraints, and a clear deliverable.
+- Give planning agents fresh contexts, nonoverlapping questions/file ownership and minimal shared excerpts plus pointers. Default to at most two parallel planning agents. Parent owns shared context/integration; reports contain actionable findings only. Avoid repeating full specifications or assigning duplicate review without a concrete risk or disagreement.
 - Have the parent agent reconcile their findings, check sources, and present a coherent recommendation.
-- Record researched recommendations as proposals until approved. Treat capability claims as unverified until the required checks support them.
+- Record research in the authorized working design, distinguishing actual user decisions, unresolved choices and unverified capability claims.
 
 ## Design completeness
 
@@ -57,7 +58,7 @@ Assign deferred decisions to an owning component or later design round. Review t
 - memory.md tracks agreed decisions, changes, outstanding work, and where to resume.
 - rules.md defines how we collaborate.
 
-Update the relevant documents when decisions are accepted. When a decision changes, update affected descriptions and record what it supersedes. Keep proposed behavior clearly marked.
+Maintain one authoritative contract per topic; summaries link to it rather than repeat its full contents. Edit that contract directly under the review authorization above. Keep a compact current resume section in memory.md and update it at substantive handoffs; consult historical entries only when resolving a specific decision. Actual user review status and unverified claims remain explicit.
 
 ## Coding agent workflow
 
@@ -79,7 +80,10 @@ These model settings govern the development agents working on this repository.
 
 ## Implementation and verification
 
-- Use the code-review-graph skill to narrow repository reading to relevant files and symbols. For code relationships and impact, start with the smallest useful graph query, then inspect the actual affected source and relevant tests; expand only when evidence requires it. For prose, literal text or files the graph does not index, use targeted `rg` searches and focused reads. Avoid broad repository scans or reading unrelated files. Graph results guide scope; source remains authoritative, and missing/unresolved relationships require targeted source checks.
+- Use the code-review-graph skill to narrow code relationships and impact, then inspect affected source/tests. Use QMD for Markdown documentation as specified below; use targeted `rg` for source literals and other unindexed text. Avoid unrelated scans; source remains authoritative when graph relationships are missing or unresolved.
+- Use the [QMD skill](https://skills.sh/tobi/qmd/qmd) as the default for local Markdown discovery and reading. Search the relevant configured documentation collection with keyword search (`qmd search`, normally at most 5 hits), then retrieve the relevant source range with `qmd get "<docid-or-path>:<start>:<count>"`, normally 40–80 lines. Search snippets are leads, not sufficient evidence for a decision. Expand around headings, qualifications and cross-references only as needed; reuse unchanged material already read. Prefer keyword search; semantic models, embeddings and bulk/full-document retrieval are optional, not automatic.
+- If QMD or the relevant current index is unavailable, report that briefly and use targeted `rg` plus bounded file reads. Installing QMD/the skill, creating an index or downloading models requires separate authorization; this rule update alone does not claim those steps occurred.
+- Read only relevant headings/sections and changed source, normally 40–80 lines at a time; reuse unchanged content already read. Keep discovery/results compact (normally at most 2,000 output tokens/call), summarize metadata rather than dump tool payloads, and narrow a query when output truncates. Expand deliberately when correctness or mandatory skill instructions require it.
 - Build the smallest complete implementation that satisfies the approved specification.
 - Reuse existing code and dependencies where appropriate.
 - Cover the affected callers, configuration, interfaces, and failure paths.
@@ -101,5 +105,8 @@ These model settings govern the development agents working on this repository.
 
 - Explain architectural decisions in plain language, supported by concrete examples.
 - Keep progress updates concise and focused on findings and remaining work.
+- Avoid repeating the same proposal in documents, commentary, review wording and final recap. Present decisions/tradeoffs once; use brief change summaries and approval acknowledgments. Report verification results once per completed task and preserve required graph/Floorplan maintenance cadence.
+- Subsequent reviews explain only changed decisions, consequences and unresolved blockers, linking to the authoritative contract. Restate unchanged contracts only when the user asks or a consequential inconsistency requires it.
+- Prefer a fresh chat at a completed phase or substantial context handoff, using the compact resume section and targeted specification pointers. A new chat for every small approval can cost more reload/handoff work; do not fork or create chats without the user's request.
 - State uncertainty and material assumptions explicitly.
 - End work summaries with relevant verification gaps or risks.

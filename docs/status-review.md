@@ -2,6 +2,8 @@
 
 Reviewed 15 November 2026 against the PRD, architecture documents, decision log and current source. This is a status audit, not approval of new contracts or implementation.
 
+Design-status addendum, 18 November 2026: integration rounds 1–5 are now approved, including the shared evidence registry, entry guards, Chat memory/context/compaction, Direct/Clarification/control handoffs, interpretation/obligation/progress rules and finite candidate budgets. Round 5 design review is closed. Next are round 6 canonical persistence/recovery/concurrency and round 7 integrated evaluation/readiness audit. Source observations below remain the 15 November audit; this addendum records design approvals, not a fresh implementation audit or runtime milestone.
+
 ## Current position
 
 The project has approved product foundations and substantial specialist designs. SQL is approved; Python, Answer and Reviewer component design reviews are closed with explicit prerequisites and unrun gates. The complete agent/system design is not finished, and approved designs are not evidence of working functionality.
@@ -13,8 +15,8 @@ Implementation remains the starter scaffold: [agent entry](../agent/src/querivue
 | Area | Status and remaining work |
 | --- | --- |
 | Product scope | Baseline approved in [PRD](PRD.md). Local single operator, inspectable evidence, independent agent package and phased build are settled. Showcase dataset/question and final walkthrough remain later choices. |
-| Shared memory/context | Next design dependency. Define Chat versus Project scope, recent turns and summaries, confirmed definitions/filters, evidence selection/reuse, revision packets, bounded context/compaction, provenance and source-removal invalidation. Distinguish conversational memory, durable records and graph checkpoints. Python/Answer/Reviewer explicitly depend on this. |
-| Supervisor and Clarification | Finish concrete task/control/action/outcome wrappers and serialization; Direct answer contract; clarification request/reply/resume identity and transitions; prerequisite tracking, retries/replay/checkpoints, completion and no-progress bookkeeping; shared budget/concurrency admission. Existing specialist payloads and two-review policy are already approved. See [Supervisor](architecture/supervisor.md). |
+| Shared memory/context | Policy approved through integration rounds 3–5: Chat scope, confirmed/tentative interpretations, evidence reuse, versioned obligations, bounded packets/compaction and invalidation. Exact canonical storage/selection implementation, pinned configuration and measured enforcement remain dependencies. See [Agent integration](architecture/agent-integration.md). |
+| Supervisor and Clarification | Policy/handoffs approved through integration round 5, including task/action/outcome identity, Direct, analytical clarification, prerequisites, progress/completion/partial/stop and finite candidate budgets. Canonical serialization/transactions, durable retry/checkpoint/concurrency wiring, exact model/spend/resource configuration and live proof remain rounds 6–7/readiness work. See [Supervisor](architecture/supervisor.md). |
 | Shared runtime and storage contracts | Specify canonical typed packet encoding/hash boundaries, exact durable run/task/action/attempt/invocation/review/error records, ownership and transitions, idempotent handoff, artifact publication/access/deletion and ledger/checkpoint reconciliation. SQLite standalone authority and moving that authority together to Postgres are settled; Persistent Redis-backed LangGraph checkpoints and fresh-process CLI recovery are standalone agent milestone 1E; checkpoint state must not become a competing publication authority. |
 | SQL Specialist | Approved design. Implement and verify the SQLGlot positive policy, pinned DuckDB runner/connection lock-down, typed evidence, recovery/publication fencing and analytical checks. Exact compatible builds/configuration and live safety/recovery gates remain. See [SQL](architecture/sql-specialist.md). |
 | Python Specialist | Design review closed. Implement artifact-only computation/chart tools and approved isolation target; verify exact E2B template feasibility, cgroup/namespace/syscall/FD/process-tree enforcement, typed values/PNG normalization, budgets and recovery. Missing enforceable isolation blocks execution. See [Python](architecture/python-specialist.md). |
@@ -37,8 +39,8 @@ Implementation remains the starter scaffold: [agent entry](../agent/src/querivue
 
 ## Recommended next sequence
 
-1. Review shared memory/context design.
-2. Finish Supervisor/Clarification/Direct answer and shared runtime contracts, reconciling context and existing specialist handoffs.
+1. Complete integration round 6: canonical runtime records/typed hashing, persistent ledger/checkpoint reconciliation, recovery and concurrency/invalidation transactions.
+2. Complete round 7 integrated evaluation/readiness audit against the approved specialist and shared contracts.
 3. Finish ingestion and sandbox integration design needed by the standalone CLI, including profile/evidence preparation.
 4. Prepare role prompts, an approved implementation plan and finite verification/evaluation configuration. Obtain any required live-spend authorization for feasibility checks; record results rather than infer support from design documents.
 5. Implement the standalone agent milestones 1A–1G, followed by the remaining application phases in the [PRD order](PRD.md#build-milestones). Evaluate candidate configurations once the required implementation, manifests and caps exist.

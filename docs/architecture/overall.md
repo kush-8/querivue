@@ -10,7 +10,7 @@ Organized 14 November 2026. Confirmed foundations and remaining design work; com
 | [Data ingestion](data-ingestion.md) | Upload preparation, import confirmation, formats and immutable dataset publication. |
 | [Sandbox execution](sandbox-execution.md) | Execution isolation, storage handoff and the E2B assessment. |
 | [Supervisor](supervisor.md) | Planning, state, delegation, outcomes and review flow. |
-| [Agent graph, memory and integration](agent-integration.md) | Agenda, rounds 1–2/evidence registry and entry guardrails 2B1–2B2 approved, including intake records and candidate limits; memory/context policy next. |
+| [Agent graph, memory and integration](agent-integration.md) | Agenda and rounds 1–5 approved, including entry guards, context, shared controls, finite candidate budgets and round 5 audit; canonical persistence/recovery/concurrency next. |
 | [SQL Specialist](sql-specialist.md) | Approved SQL contracts, safety, recovery and tabular handoff. |
 | [Python Specialist](python-specialist.md) | Design review closed: rounds 1–7 approved; context/configuration dependencies and runtime gates remain. |
 | [Answer Specialist](answer-specialist.md) | Rounds 1–6 approved; design review closed with explicit readiness gates. |
@@ -58,7 +58,7 @@ Backend and agent dependencies use separate uv projects and virtual environments
 
 Before implementing a component, resolve its consequential design choices and obtain agreement on its spec. Keep decisions visibly marked as agreed, proposed, or open. Record explicit defaults and their rationale. Describe request and result contracts, allowed actions, state transitions, data scope, dependencies, parallel result handling, failure and retry behavior, completion checks, limits, and acceptance scenarios. Settle each item in the component that owns it.
 
-Specialist payloads, fresh-answer handoff, correction routing and the two-review policy are approved in the component specifications. Remaining supervisor work covers shared task/control/outcome contracts, Direct answer and clarification transitions, dependencies/recovery, runtime budget admission and model configuration. Shared agent/application memory and canonical runtime contracts remain separate prerequisites. See the [status review](../status-review.md) for the current outstanding-work map.
+Specialist contracts and integration rounds 1–5 are approved: shared state/evidence registry, entry guards, Chat-scoped memory/context, typed task/control handoffs, Direct answer, analytical Clarification, interpretation/obligation checks, progress and finite candidate budgets. Canonical typed serialization/records/transactions, persistent ledger/checkpoint recovery/concurrency and the final integration audit remain rounds 6–7. Exact models/prompts/spend/resource settings and live enforcement/quality evidence remain prerequisites; design closure does not establish implementation readiness. See [agent integration](agent-integration.md) for the latest approved scope and the [status review](../status-review.md) for the broader remaining-work map.
 
 A new constraint discovered during implementation must be checked against the agreed spec. Record and resolve any consequential design change before coding that change.
 
@@ -69,7 +69,7 @@ A new constraint discovered during implementation must be checked against the ag
 - Concrete shared run/attempt/control transitions, clarification resume, retry/checkpoint integration and implementation of the approved source deletion/publication semantics.
 - Exact sandbox manifests/configuration, measured resource limits and live verification of approved access/isolation/artifact policies.
 - Shared agent/runtime interfaces and executable model/prompt/evaluation/observability configuration; component-specific handoffs and privacy policies are approved.
-- A later detailed memory discussion covering the agent loop and the application, recent turns and older summaries, persisted history retrieval, checkpoint state, and Chat versus Project scope.
+- Canonical persistence/history-selection and checkpoint enforcement for the agent/application integration. Chat versus Project scope, bounded context/compaction, interpretation/progress and shared control policy are approved through integration round 5; exact runtime wiring and measured behavior remain open.
 - Detailed Docker Compose services and environment configuration.
 
 The PRD defines the agreed behavior and build phases. This draft records confirmed choices while the remaining architecture is discussed.

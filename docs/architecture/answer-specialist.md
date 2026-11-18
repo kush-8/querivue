@@ -81,7 +81,7 @@ Carry actual unmet-deliverable/error facts from runtime outcomes so a missing ch
 
 Revision context is runtime-resolved and either absent or tied to the exact prior draft and Reviewer result by their recorded IDs. Supply the authorized prior draft, selected supporting context and blocking feedback. Reject mismatched/stale/cross-run feedback rather than treating it as a new user instruction. Exact draft-version/feedback schemas and re-entry mechanics belong to rounds 3–4. A revision is a new invocation with its own immutable packet; it does not mutate the prior draft or replenish review passes.
 
-No unbounded chat history, raw results, storage URLs, credentials or hidden source-derived summaries are automatically included. The broader memory/context policy determines bounded selection and compaction before dependent implementation; it cannot discard validity/provenance or transform unverified statements into evidence.
+No unbounded chat history, raw results, storage URLs, credentials or hidden source-derived summaries are automatically included. Approved [integration rounds 3–4](agent-integration.md) define Chat-scoped memory, runtime packet selection and deterministic compaction. Required evidence/context and exact linked feedback remain protected; rendering/repair-aware full review capacity is preflighted before drafting. Existing candidate limits remain binding. Model/tokenizer/renderer configuration, control schemas and measured adequacy remain gates; compaction cannot discard validity/provenance or transform unverified statements into evidence.
 
 ### Context-delivery alternatives
 
