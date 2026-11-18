@@ -12,6 +12,7 @@ Working agreement established 14 November 2026. This document captures the colla
 ## Design discussions
 
 - Plan at the component or integration-phase level, grouping related contracts into one coherent review packet. Split only when a consequential choice genuinely blocks dependent work or the user requests a narrower discussion.
+- For every phase after the current agent integration phase, create a separate phase planning Markdown document as the first phase artifact, before any other work on that phase. Use it to guide subsequent research, design, architecture edits and review; keep it current through the phase. The current agent integration phase continues from its existing approved plan/agenda; do not create a replacement phase plan retroactively.
 - Explain the recommendation, relevant alternatives, and practical tradeoffs. Use concrete examples and flowcharts when they help.
 - Reuse decisions already recorded. Reopen them when new evidence or a user instruction changes their basis.
 - Research facts in the project and official documentation. Ask the user about preferences and consequential tradeoffs.
@@ -22,7 +23,8 @@ Working agreement established 14 November 2026. This document captures the colla
 ## Review and document-edit authorization
 
 - Use ordinary chat for design review and user replies; do not use approval pop-ups.
-- The user preauthorizes reversible proposal edits directly in the relevant documents as the current working design. Write the design once, summarize consequential choices/tradeoffs in chat and incorporate objections or requested changes in place.
+- The user preauthorizes reversible documentation edits. For new work, keep exploratory plans/proposals in a separate temporary task-specific planning Markdown document. Keep architecture guides organized by stable topics and settled contracts; transfer the final decisions there as the work settles.
+- After agent integration, base architecture edits on the phase planning document. Reversible architecture edits may be prepared before approval under the standing authorization, with proposed changes clearly distinguished from approved contracts. Preserve existing approvals and unrelated edits; do not treat prepared edits as approval for dependent implementation. Phase planning documents are temporary: retain them during the phase, then transfer lasting decisions, rationale and open gates into the architecture guides/decision log, delete the planning documents when the phase is complete, and repair their links.
 - Standing document-edit authorization is not a claim that the user explicitly reviewed every new choice, nor authorization for coding, paid runs or external effects. Identify unresolved consequential choices and await any answer necessary for dependent implementation.
 - Chat approval needs a short acknowledgment, not a second rewritten specification or a separate file-changing approval task. Update status/decision tracking with the next substantive edit or phase handoff.
 - Revise or undo only our own identified proposal changes, preserving unrelated user/agent edits. Use a targeted diff/patch; avoid whole-file or workspace rollback.
@@ -30,11 +32,11 @@ Working agreement established 14 November 2026. This document captures the colla
 
 ## Subagents
 
-- Explicitly set `reasoning_effort="medium"` for every subagent, including research, planning, review and implementation. Do not inherit the supervisor's reasoning level.
-- For planning/research, use subagents only for independent tasks where parallel execution is expected to save time. Otherwise work in the parent, including single-topic reviews. Do not delegate merely to obtain another opinion. This restriction does not apply to writing code.
+- Use subagents exclusively for coding work. The supervisor handles planning, research, design review and documentation directly, including independent planning questions.
+- Explicitly set `reasoning_effort="medium"` for every coding subagent. Do not inherit the supervisor's reasoning level.
 - For writing code, always delegate implementation to smaller-model subagents, even for one task. The parent supervises, integrates and reviews. Follow the coding model settings below.
 - Give them bounded responsibilities, current decisions, constraints, and a clear deliverable.
-- Give planning agents fresh contexts, nonoverlapping questions/file ownership and minimal shared excerpts plus pointers. Default to at most two parallel planning agents. Parent owns shared context/integration; reports contain actionable findings only. Avoid repeating full specifications or assigning duplicate review without a concrete risk or disagreement.
+- Start coding subagents with fresh contexts and supervisor-supplied requirements, relevant contract excerpts, interfaces, file scope, constraints and acceptance criteria. They inspect assigned code/tests, not project documentation. Missing documentation context goes back to the supervisor, who reads it through QMD and supplies only the required information. Avoid full-chat/full-document dumps and overlapping ownership.
 - Have the parent agent reconcile their findings, check sources, and present a coherent recommendation.
 - Record research in the authorized working design, distinguishing actual user decisions, unresolved choices and unverified capability claims.
 
@@ -58,7 +60,9 @@ Assign deferred decisions to an owning component or later design round. Review t
 - memory.md tracks agreed decisions, changes, outstanding work, and where to resume.
 - rules.md defines how we collaborate.
 
-Maintain one authoritative contract per topic; summaries link to it rather than repeat its full contents. Edit that contract directly under the review authorization above. Keep a compact current resume section in memory.md and update it at substantive handoffs; consult historical entries only when resolving a specific decision. Actual user review status and unverified claims remain explicit.
+- At completion of the current agent integration phase, reorganize `architecture/agent-integration.md` into a topic-based architectural document rather than a chronological round-by-round planning/review record. Preserve approved contracts, ownership, interfaces, failure/recovery behavior, constraints, rationale and unresolved verification gates; retain review history in memory.md, remove superseded planning/status wording and repair affected links/anchors. Do this at phase completion, not during the remaining review rounds.
+
+Maintain one authoritative architectural contract per topic; summaries link to it rather than repeat its full contents. Planning documents are temporary working material, separate from architecture guides. At job completion, ensure decisions, constraints, open gates and needed rationale are captured in the durable guides/decision log, then delete the task's planning document and repair its links. Preserve existing information and unrelated files. Keep a compact current resume section in memory.md and update it at substantive handoffs; consult historical entries only for specific decisions. Actual user review status and unverified claims remain explicit.
 
 ## Coding agent workflow
 
@@ -82,6 +86,7 @@ These model settings govern the development agents working on this repository.
 
 - Use the code-review-graph skill to narrow code relationships and impact, then inspect affected source/tests. Use QMD for Markdown documentation as specified below; use targeted `rg` for source literals and other unindexed text. Avoid unrelated scans; source remains authoritative when graph relationships are missing or unresolved.
 - Use the [QMD skill](https://skills.sh/tobi/qmd/qmd) as the default for local Markdown discovery and reading. Search the relevant configured documentation collection with keyword search (`qmd search`, normally at most 5 hits), then retrieve the relevant source range with `qmd get "<docid-or-path>:<start>:<count>"`, normally 40–80 lines. Search snippets are leads, not sufficient evidence for a decision. Expand around headings, qualifications and cross-references only as needed; reuse unchanged material already read. Prefer keyword search; semantic models, embeddings and bulk/full-document retrieval are optional, not automatic.
+- QMD is configured with collection `querivue-docs` for this repository's `docs/**/*.md`. Scope documentation searches to it. Local maintenance of that existing collection is authorized after doc edits; before global `qmd update`, verify the configured scope and absence of update hooks. Additional collections, hook execution and model downloads require separate authorization.
 - If QMD or the relevant current index is unavailable, report that briefly and use targeted `rg` plus bounded file reads. Installing QMD/the skill, creating an index or downloading models requires separate authorization; this rule update alone does not claim those steps occurred.
 - Read only relevant headings/sections and changed source, normally 40–80 lines at a time; reuse unchanged content already read. Keep discovery/results compact (normally at most 2,000 output tokens/call), summarize metadata rather than dump tool payloads, and narrow a query when output truncates. Expand deliberately when correctness or mandatory skill instructions require it.
 - Build the smallest complete implementation that satisfies the approved specification.
@@ -89,7 +94,7 @@ These model settings govern the development agents working on this repository.
 - Cover the affected callers, configuration, interfaces, and failure paths.
 - Run checks appropriate to the change. Use meaningful tests and evaluations derived from the specification.
 - Report what changed, what was verified, and what remains unresolved. Distinguish documented support from measured behavior.
-- At the end of every task that changes repository files, after the final edits and checks, update the local code-review graph and verify its status once before reporting completion. This is standing authorization for local incremental graph maintenance; use the code-review-graph skill and prefer its MCP tools. Skip updates when no repository files changed. If updating fails or is unavailable, report the gap rather than claim the graph is current. This does not authorize external embeddings or unrelated graph maintenance.
+- After every completed round, refresh both the local QMD documentation index and code-review-graph, then verify each status once before reporting completion, even if the round made no file changes. Also refresh the relevant index after a file-changing task between rounds. This is standing authorization for local maintenance of the existing Querivue indexes; use QMD and the code-review-graph MCP tools where available. Report failures explicitly. This does not authorize embeddings, model downloads or unrelated indexes. When a phase-end Floorplan refresh is due, finish it before these final index updates.
 - Update the [Floorplan](plugin://floorplan@floorplan) map only after completion of an agreed phase, unless the user explicitly requests an earlier refresh. Accumulate map-relevant changes during the phase instead of refreshing after individual tasks or edits. At phase completion, refresh the existing map and update affected descriptions, connections, guided flows, open questions and recent-work notes; check the build output and show the refreshed map, disclosing any refresh/validation failure. Use blueprint mode for planned pieces and accurately label what is implemented; candidate paths and unresolved choices do not become approved merely by appearing on the map. Keep approved contracts in tracked documents and the generated local map out of git. When a phase-end Floorplan refresh is due, do it before the final code-review-graph update; the separate end-of-task code-review-graph rule remains unchanged. This is standing authorization for local map maintenance, not production coding, paid Ask/Build calls or resolution of unapproved design choices.
 
 ## Evaluation and cost

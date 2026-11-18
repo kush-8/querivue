@@ -10,7 +10,7 @@ Organized 14 November 2026. Confirmed foundations and remaining design work; com
 | [Data ingestion](data-ingestion.md) | Upload preparation, import confirmation, formats and immutable dataset publication. |
 | [Sandbox execution](sandbox-execution.md) | Execution isolation, storage handoff and the E2B assessment. |
 | [Supervisor](supervisor.md) | Planning, state, delegation, outcomes and review flow. |
-| [Agent graph, memory and integration](agent-integration.md) | Agenda and rounds 1–5 approved, including entry guards, context, shared controls, finite candidate budgets and round 5 audit; canonical persistence/recovery/concurrency next. |
+| [Agent integration](agent-integration.md) | Design closed through rounds 1–7: graph/state, entry, memory/context, controls, finite limits, canonical recovery/concurrency and integrated acceptance gates. |
 | [SQL Specialist](sql-specialist.md) | Approved SQL contracts, safety, recovery and tabular handoff. |
 | [Python Specialist](python-specialist.md) | Design review closed: rounds 1–7 approved; context/configuration dependencies and runtime gates remain. |
 | [Answer Specialist](answer-specialist.md) | Rounds 1–6 approved; design review closed with explicit readiness gates. |
@@ -58,7 +58,7 @@ Backend and agent dependencies use separate uv projects and virtual environments
 
 Before implementing a component, resolve its consequential design choices and obtain agreement on its spec. Keep decisions visibly marked as agreed, proposed, or open. Record explicit defaults and their rationale. Describe request and result contracts, allowed actions, state transitions, data scope, dependencies, parallel result handling, failure and retry behavior, completion checks, limits, and acceptance scenarios. Settle each item in the component that owns it.
 
-Specialist contracts and integration rounds 1–5 are approved: shared state/evidence registry, entry guards, Chat-scoped memory/context, typed task/control handoffs, Direct answer, analytical Clarification, interpretation/obligation checks, progress and finite candidate budgets. Canonical typed serialization/records/transactions, persistent ledger/checkpoint recovery/concurrency and the final integration audit remain rounds 6–7. Exact models/prompts/spend/resource settings and live enforcement/quality evidence remain prerequisites; design closure does not establish implementation readiness. See [agent integration](agent-integration.md) for the latest approved scope and the [status review](../status-review.md) for the broader remaining-work map.
+Specialist contracts and integration rounds 1–7 are approved: shared state/evidence registry, entry guards, Chat-scoped memory/context, typed task/control handoffs, Direct answer, analytical Clarification, interpretation/obligation checks, progress, finite candidate budgets and [persistent recovery/concurrency](agent-integration.md#persistent-recovery-and-concurrency). Round 6 settles canonical typed hashes/records, ledger-first transactions, fenced ownership, checkpoint reconstruction and invalidation/publication. The [integrated acceptance/readiness contract](evaluation-observability.md#integrated-acceptance-and-readiness) is approved; executable acceptance remains outstanding. Exact models/prompts/spend/resource settings and live enforcement/quality evidence remain prerequisites; design closure does not establish implementation readiness. See the [status review](../status-review.md) for the broader remaining-work map.
 
 A new constraint discovered during implementation must be checked against the agreed spec. Record and resolve any consequential design change before coding that change.
 
@@ -66,10 +66,10 @@ A new constraint discovered during implementation must be checked against the ag
 
 - Background execution framework and broker configuration. Celery with Redis is the current proposal.
 - Progress delivery. Polling run status is the initial proposal. Decide whether the frontend needs live streamed events.
-- Concrete shared run/attempt/control transitions, clarification resume, retry/checkpoint integration and implementation of the approved source deletion/publication semantics.
+- Implementation of approved shared run/attempt/control transactions, clarification resume, retry/checkpoint reconciliation and source deletion/publication semantics; exact adapter/API wiring and live proof remain required.
 - Exact sandbox manifests/configuration, measured resource limits and live verification of approved access/isolation/artifact policies.
 - Shared agent/runtime interfaces and executable model/prompt/evaluation/observability configuration; component-specific handoffs and privacy policies are approved.
-- Canonical persistence/history-selection and checkpoint enforcement for the agent/application integration. Chat versus Project scope, bounded context/compaction, interpretation/progress and shared control policy are approved through integration round 5; exact runtime wiring and measured behavior remain open.
+- Canonical persistence/history-selection and checkpoint enforcement implementation for the agent/application integration. Policy and recovery/concurrency contracts are approved through integration round 7; exact runtime wiring and measured behavior remain open.
 - Detailed Docker Compose services and environment configuration.
 
 The PRD defines the agreed behavior and build phases. This draft records confirmed choices while the remaining architecture is discussed.

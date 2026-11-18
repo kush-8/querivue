@@ -1,10 +1,29 @@
-# Python Specialist design
+# Python Specialist architecture
 
-15 November 2026. **Rounds 1–7 approved; Python Specialist design review closed with explicit gates.** The design has explicit context/configuration dependencies and unrun runtime gates; it is not implementation-ready. No code, paid runs or live verification have been performed.
+This guide is organized by architectural responsibility and contract. Design approval does not establish runtime readiness; configuration and verification gates remain applicable. Review labels are retained in the history appendix for traceability.
 
 [Overall architecture](overall.md) · [SQL Specialist](sql-specialist.md) · [Supervisor](supervisor.md)
 
-## Existing decisions
+## Guide contents
+
+- [Scope and established boundaries](#scope-and-established-boundaries)
+- [Responsibility and input access](#responsibility-and-input-access)
+- [Request, context and state](#request-context-and-state)
+- [Tools and code-call lifetime](#tools-and-code-call-lifetime)
+- [Target OS isolation profile](#target-os-isolation-profile)
+- [Evidence/chart formats and libraries](#evidencechart-formats-and-libraries)
+- [Artifact declarations, values and metadata](#artifact-declarations-values-and-metadata)
+- [Terminal return to the supervisor](#terminal-return-to-the-supervisor)
+- [Source dependencies and invalidation](#source-dependencies-and-invalidation)
+- [Lifecycle, recovery, errors and stopping](#lifecycle-recovery-errors-and-stopping)
+- [Evaluation, observability and bounded settings](#evaluation-observability-and-bounded-settings)
+- [Integration requirements and verification gates](#integration-requirements-and-verification-gates)
+- [Implementation readiness](#implementation-readiness)
+- [Review history and legacy section map](#review-history-and-legacy-section-map)
+
+<a id="existing-decisions"></a>
+
+## Scope and established boundaries
 
 The supervisor owns routing and delegation. SQL handles simple counts and comparisons; Python is used when computation or visualization needs it. Specialists return findings to the supervisor. Fresh answers go through the Answer Specialist and Reviewer, with at most two review passes. A failed requested chart must preserve supported findings for a visibly partial answer where possible.
 
@@ -12,7 +31,9 @@ Authorized tabular evidence already has a shared handoff: complete typed Parquet
 
 Run scope, source invalidation, read-only inputs, no outbound internet, worker-side OpenRouter calls, per-action execution contexts and persistent reusable outputs remain existing requirements. Their enforcement in the eventual Python runtime is not verified.
 
-## Round 1: responsibility and input access
+<a id="round-1-responsibility-and-input-access"></a>
+
+## Responsibility and input access
 
 ### Approved responsibility
 
@@ -53,11 +74,13 @@ Measure the extra preparation calls, latency, cost and export-limit failures. Re
 | Input is only an aggregate and the algorithm needs individual rows | Return the missing-input requirement; do not infer the distribution from a preview or aggregate. |
 | Calculation succeeds but chart creation fails | Preserve published numerical evidence and return the missing deliverable; the existing supervisor/answer/reviewer flow handles the partial answer. |
 
-### Round 1 approval scope
+### Historical approval scope (review 1)
 
 The user approved the focused calculation/visualization responsibility, the routing and return-to-supervisor rules, artifact-only initial input access, and independently inspectable numerical evidence behind charts. That approval does not select a library, chart format, tool count, state schema, interpreter protocol, sandbox enforcement mechanism or numerical ceiling.
 
-## Round 2: approved request, context and state
+<a id="round-2-approved-request-context-and-state"></a>
+
+## Request, context and state
 
 ### Python action request
 
@@ -133,7 +156,7 @@ The runtime updates output-reference lists only after trusted publication. A mod
 
 Checkpoint state contains no live dataframe, figure, interpreter, module, database connection or process object. Unsaved variables and files are not recoverable results. Executed code and source-bearing tool details may remain in authorized local records/messages under existing privacy rules; they are not exported to hosted traces. Approved [integration rounds 4A–4B](agent-integration.md) define bounded packets, previews, whole-exchange compaction and protected deterministic progress. Python's candidate per-request ceiling is 16,384 input/4,096 generated tokens, still subject to its 64,000 input/8,000 generated cumulative action budget and other limits. Exact configuration and measured adequacy remain gates.
 
-### Round 2 acceptance scenarios
+### Acceptance scenarios (review 2)
 
 - Reject wrong discriminator, malformed IDs, empty objective/input lists, duplicate IDs, invalid output kinds, malformed shared constraints and unexpected fields such as a table/path selector. Exact numerical payload caps remain evaluated configuration.
 - Reject unauthorized, unpublished, corrupt, incompatible, source-invalidated or unavailable inputs before loading; metadata and UUIDs cannot widen action access.
@@ -142,11 +165,13 @@ Checkpoint state contains no live dataframe, figure, interpreter, module, databa
 - Runtime identity, attempt/generation, deadline, counters and published-reference collections cannot be overwritten by model output. Output/reference restoration respects current publication and source validity.
 - Valid published calculation/chart references survive correction and compaction without restoring live interpreter objects or relying on stale sandbox paths.
 
-### Round 2 approval scope
+### Historical approval scope (review 2)
 
 The user approved the six request fields and their validation, runtime-resolved authorized context, source-constraint interpretation rules, and six state fields with their ownership. Tool APIs, package/rendering choices, code isolation, detailed artifact/output schemas, operation recovery and numerical limits remain for their scheduled rounds.
 
-## Round 3A: approved tools and code-call lifetime
+<a id="round-3a-approved-tools-and-code-call-lifetime"></a>
+
+## Tools and code-call lifetime
 
 The user approved 3A's model-facing tools and execution unit. Round 3B settles the concrete OS isolation/launch profile and provider feasibility gates. Approval of 3A does not authorize executing Python with an unenforced boundary.
 
@@ -196,7 +221,7 @@ The trusted launcher passes code as a script and arguments as an argument vector
 
 Fresh interpreters, current directories, import settings and Python audit hooks are not the security boundary. Python explicitly warns that Python-level audit hooks are unsuitable for sandboxing. Round 3B must enforce the private input/filesystem view, sibling/process/controller separation, denied network, finite aggregate resource limits and full-tree termination. Refuse execution when the required profile cannot be established. [Python 3.12 audit hooks](https://docs.python.org/3.12/library/sys.html#sys.addaudithook).
 
-### Round 3A acceptance and approval scope
+### Acceptance and historical review scope (review 3A)
 
 An independent scoped consistency review found no approval-blocking contradictions with rounds 1–2 or the shared contracts. This was a design review, not a live enforcement test.
 
@@ -208,7 +233,9 @@ An independent scoped consistency review found no approval-blocking contradictio
 
 The user approved the two tools and common arguments, per-call input staging, disposable-interpreter refinement, separate numerical/chart operations, failed-call publication rule, trusted collection boundary and package policy. The concrete isolation profile, type-specific output formats/schemas, detailed lifecycle/retry protocol and evaluated numerical ceilings remain for their scheduled reviews.
 
-## Round 3B: approved target OS isolation profile
+<a id="round-3b-approved-target-os-isolation-profile"></a>
+
+## Target OS isolation profile
 
 ### Approach and approval boundary
 
@@ -278,7 +305,9 @@ Before enabling the exact template/profile:
 
 Live gates have not run. The user approved this target profile, its conservative unreaped-child rule and refusal-to-run policy pending verification. That approval does not declare E2B feasible, mark the component implementation-ready, authorize paid tests, or approve later artifact/lifecycle contracts.
 
-## Round 4A: approved evidence/chart formats and libraries
+<a id="round-4a-approved-evidencechart-formats-and-libraries"></a>
+
+## Evidence/chart formats and libraries
 
 Round 4A selects the initial representations and supported library stack. Round 4B will define the exact declaration/metadata schemas, lineage, chart backing and terminal return contract. Nothing in this round bypasses the approved isolation gates.
 
@@ -320,7 +349,7 @@ After the approved process/collection checks, use a restricted decoder context w
 
 Re-encode accepted RGB/RGBA pixels to a clean single-frame PNG without copying candidate metadata or trailing bytes. Publish the normalized bytes and compute their actual size/checksum; do not keep the candidate checksum as the identity of a different served file. Preserve pixel dimensions and record normalization/encoder identity in provenance. This uses the existing decoder dependency rather than a custom PNG parser. It does not prove analytical correctness or prevent information encoded in the visible pixels. Exact artifact metadata is round 4B.
 
-### Round 4A acceptance and approval scope
+### Acceptance and historical review scope (review 4A)
 
 An independent scoped consistency review found no approval-blocking format contradictions. It did not run decoder, renderer or sandbox compatibility checks.
 
@@ -331,57 +360,9 @@ An independent scoped consistency review found no approval-blocking format contr
 
 The user approved typed Parquet including scalar-as-one-row representation, single-frame PNG with Matplotlib Agg, the minimal library stack/Pillow normalization, explicit saved analytical plot values, and the offline/accessibility requirements on 15 November 2026. This does not approve 4B's precise declarations, type/lineage/return schemas or claim any live compatibility checks have passed.
 
-## Round 4B1: approved source dependencies and invalidation
+<a id="round-4b3-approved-artifact-declarations-values-and-metadata"></a>
 
-Approved 15 November 2026. Remaining output contracts must implement this lineage policy.
-
-Every newly published Python evidence item or chart inherits the runtime-verified union of Dataset dependencies of all evidence delegated to its action, including transitive dependencies. This is the action's input set, not every Dataset in the run or Project. Per-code-call selected inputs remain execution provenance; they cannot narrow invalidation dependencies after the model has received the action context.
-
-Automatically supplied source-derived facts in the objective, constraints, original-question context, previous findings and retained messages must have recorded dependencies covered by the action inputs. The context builder must exclude unsupported retrieved context or require the supervisor to supply its backing evidence before dispatch. Independently retainable outputs require independently scoped actions and context, not merely separate code calls. Detailed conversation-context assembly remains owned by memory design, subject to this constraint. User-authored statements remain unverified request text or explicit assumptions; they are not promoted into computed project evidence.
-
-Existing evidence referenced unchanged retains its original dependencies. A new chart inherits its action's complete dependency union, including sources that could influence labels, annotations or reference lines. Its backing numerical table does not automatically acquire the chart's additional dependencies. Numerical evidence retained after chart failure remains subject to source invalidation under its own recorded dependency set.
-
-### Explicit behavior change to review
-
-The PRD currently describes deleting completed outputs only when they actually used the removed source. For Python outputs, the approved policy conservatively treats all supplied source-bearing action inputs as used for invalidation. It does not claim to measure actual causal influence. A Python action supplied A and B loses its new outputs when B is removed even if its code appears to read only A. An independently scoped A-only action remains available; unchanged pre-existing A evidence also remains available.
-
-The user explicitly approved this clarification/change; the PRD and shared SQL handoff are updated. It was not an automatic consequence of artifact-only access. SQL's parsed-query dependency contract remains unchanged. The PRD rule stopping unfinished runs whose pinned scope includes a removed Dataset also remains unchanged.
-
-### Alternatives and checks
-
-- **Action-wide union — recommended:** covers model-context influence without trusting generated code's claims. It can invalidate more Python outputs than strictly necessary.
-- **Per-call declared/read inputs only:** finer retention, but misses source-derived model context and annotations. Python assertions, audit hooks and file-read logs cannot by themselves establish complete causal lineage.
-- **Restricted deterministic transformations:** could permit finer attribution, but introduces another execution/analysis contract beyond the approved arbitrary-Python approach.
-
-The runtime derives dependencies from validated evidence records, never model-provided source lists. Recheck authorization, publication, integrity and current source availability before input use, restoration, publication and access. A missing/invalid dependency blocks publication; no model declaration can revive removed sources. Ownership/deletion race mechanics remain round 5.
-
-Acceptance examples: A+B action with A-only code still depends on B; A-only action with no B-derived context survives B removal; a new A+B chart can be invalidated while unchanged A backing evidence survives; intermediate Python evidence carries transitive dependencies into later actions; chart failure preserves valid numerical evidence without overriding source deletion.
-
-An independent medium-reasoning review found this coherent provided the context boundary and deliberate broader invalidation are explicit. The user approved this lineage policy and corresponding PRD/shared-contract updates. This does not approve the remaining output schemas or claim live enforcement has been verified.
-
-## Round 4B2: approved terminal return to the supervisor
-
-Approved 15 November 2026. Reuse SQL's three terminal variants rather than introducing a second partial-success status system. Every variant ends this specialist invocation; none directly publishes the final user answer.
-
-| Variant | Model-supplied fields |
-| --- | --- |
-| `succeeded` | `observation`, `evidence_ids`, `chart_artifact_ids`, `limitations` |
-| `blocked` | `explanation`, `required_input`, `evidence_ids`, `chart_artifact_ids` |
-| `failed` | Genuine structured tool/runtime `error`, `evidence_ids`, `chart_artifact_ids` |
-
-Reference lists are unique UUIDs; either may be empty as appropriate. Evidence may reference authorized inputs or this action's published numerical outputs. Chart references must resolve to this action's published charts. Reject unknown, unpublished, invalid, stale-attempt or out-of-scope references. Preserve other valid published action outputs in runtime state even if the model omits them from its selected handoff.
-
-Success requires fulfilling the entire delegated objective and all `required_outputs`, checked against selected valid terminal references. Omitted publications remain available for recovery/replanning but do not silently satisfy this handoff. Requiring `evidence` needs a newly computed published numerical result from this action, not an unchanged input UUID. Requiring `chart` needs a new published chart with valid inspectable numerical backing. Artifact presence alone does not establish analytical correctness, requested chart count or full objective fulfillment. A blocked/failed result can retain useful evidence without claiming success.
-
-The runtime enriches the validated return with run/task/action identity, expected attempt and producer provenance. It resolves selected numerical references into actual bounded tables plus complete artifact references, and chart IDs into normalized PNG metadata, accessible descriptions and backing references. It also reports `unmet_required_outputs` for declared kinds not fulfilled; this list cannot be supplied or cleared by the model. Supervisor reasoning and the later answer/reviewer flow still check the original objective beyond these minimum kind checks.
-
-Example: a calculation-and-chart action publishes its calculation, then rendering fails. Return `failed` with the genuine rendering error, the retained numerical evidence ID and no chart ID; runtime reports `unmet_required_outputs=["chart"]`. The supervisor may correct/retry within the later lifecycle limits, replan, or offer the supported partial findings through the Answer Specialist/Reviewer. The rejected chart is never described as delivered. Missing definitions or preparation instead return `blocked` with the specific needed input. Runtime stopping conditions can create terminal failures when no valid model return is available.
-
-Source invalidation and deadline checks override every variant before publication/access. Retaining a result after rendering failure does not exempt it from the approved action-wide source dependency policy. Exact new error codes, retries and recovery transitions remain round 5; concrete evidence/chart metadata and value validation remain the next output-schema discussion.
-
-The user approved these terminal variants, selected/retained reference handling, runtime-enriched handoff and explicit unmet-deliverable reporting on 15 November 2026. This does not approve incomplete artifact/value schemas or execution feasibility.
-
-## Round 4B3: approved artifact declarations, values and metadata
+## Artifact declarations, values and metadata
 
 Approved 15 November 2026. Complete the common `outputs` declarations from 3A with kind-specific fields. The model supplies analytical descriptions and expected schemas; trusted validation supplies actual artifact facts. Unknown fields, invalid references and unsupported types are errors, not silently discarded data.
 
@@ -418,7 +399,63 @@ Structural checks validate bindings, types, artifact integrity and declared limi
 
 The user approved these declaration/record/value rules on 15 November 2026, completing round 4. It would not assert tested dtype/renderer/provider compatibility. Detailed lifecycle/error codes are round 5; exact pins, finite limits and scoring fixtures are round 6; the final integrated audit must still resolve any remaining contract gaps before implementation.
 
-## Round 5: approved lifecycle, recovery, errors and stopping
+<a id="round-4b2-approved-terminal-return-to-the-supervisor"></a>
+
+## Terminal return to the supervisor
+
+Approved 15 November 2026. Reuse SQL's three terminal variants rather than introducing a second partial-success status system. Every variant ends this specialist invocation; none directly publishes the final user answer.
+
+| Variant | Model-supplied fields |
+| --- | --- |
+| `succeeded` | `observation`, `evidence_ids`, `chart_artifact_ids`, `limitations` |
+| `blocked` | `explanation`, `required_input`, `evidence_ids`, `chart_artifact_ids` |
+| `failed` | Genuine structured tool/runtime `error`, `evidence_ids`, `chart_artifact_ids` |
+
+Reference lists are unique UUIDs; either may be empty as appropriate. Evidence may reference authorized inputs or this action's published numerical outputs. Chart references must resolve to this action's published charts. Reject unknown, unpublished, invalid, stale-attempt or out-of-scope references. Preserve other valid published action outputs in runtime state even if the model omits them from its selected handoff.
+
+Success requires fulfilling the entire delegated objective and all `required_outputs`, checked against selected valid terminal references. Omitted publications remain available for recovery/replanning but do not silently satisfy this handoff. Requiring `evidence` needs a newly computed published numerical result from this action, not an unchanged input UUID. Requiring `chart` needs a new published chart with valid inspectable numerical backing. Artifact presence alone does not establish analytical correctness, requested chart count or full objective fulfillment. A blocked/failed result can retain useful evidence without claiming success.
+
+The runtime enriches the validated return with run/task/action identity, expected attempt and producer provenance. It resolves selected numerical references into actual bounded tables plus complete artifact references, and chart IDs into normalized PNG metadata, accessible descriptions and backing references. It also reports `unmet_required_outputs` for declared kinds not fulfilled; this list cannot be supplied or cleared by the model. Supervisor reasoning and the later answer/reviewer flow still check the original objective beyond these minimum kind checks.
+
+Example: a calculation-and-chart action publishes its calculation, then rendering fails. Return `failed` with the genuine rendering error, the retained numerical evidence ID and no chart ID; runtime reports `unmet_required_outputs=["chart"]`. The supervisor may correct/retry within the later lifecycle limits, replan, or offer the supported partial findings through the Answer Specialist/Reviewer. The rejected chart is never described as delivered. Missing definitions or preparation instead return `blocked` with the specific needed input. Runtime stopping conditions can create terminal failures when no valid model return is available.
+
+Source invalidation and deadline checks override every variant before publication/access. Retaining a result after rendering failure does not exempt it from the approved action-wide source dependency policy. Exact new error codes, retries and recovery transitions remain round 5; concrete evidence/chart metadata and value validation remain the next output-schema discussion.
+
+The user approved these terminal variants, selected/retained reference handling, runtime-enriched handoff and explicit unmet-deliverable reporting on 15 November 2026. This does not approve incomplete artifact/value schemas or execution feasibility.
+
+<a id="round-4b1-approved-source-dependencies-and-invalidation"></a>
+
+## Source dependencies and invalidation
+
+Approved 15 November 2026. Remaining output contracts must implement this lineage policy.
+
+Every newly published Python evidence item or chart inherits the runtime-verified union of Dataset dependencies of all evidence delegated to its action, including transitive dependencies. This is the action's input set, not every Dataset in the run or Project. Per-code-call selected inputs remain execution provenance; they cannot narrow invalidation dependencies after the model has received the action context.
+
+Automatically supplied source-derived facts in the objective, constraints, original-question context, previous findings and retained messages must have recorded dependencies covered by the action inputs. The context builder must exclude unsupported retrieved context or require the supervisor to supply its backing evidence before dispatch. Independently retainable outputs require independently scoped actions and context, not merely separate code calls. Detailed conversation-context assembly remains owned by memory design, subject to this constraint. User-authored statements remain unverified request text or explicit assumptions; they are not promoted into computed project evidence.
+
+Existing evidence referenced unchanged retains its original dependencies. A new chart inherits its action's complete dependency union, including sources that could influence labels, annotations or reference lines. Its backing numerical table does not automatically acquire the chart's additional dependencies. Numerical evidence retained after chart failure remains subject to source invalidation under its own recorded dependency set.
+
+### Explicit behavior change to review
+
+The PRD currently describes deleting completed outputs only when they actually used the removed source. For Python outputs, the approved policy conservatively treats all supplied source-bearing action inputs as used for invalidation. It does not claim to measure actual causal influence. A Python action supplied A and B loses its new outputs when B is removed even if its code appears to read only A. An independently scoped A-only action remains available; unchanged pre-existing A evidence also remains available.
+
+The user explicitly approved this clarification/change; the PRD and shared SQL handoff are updated. It was not an automatic consequence of artifact-only access. SQL's parsed-query dependency contract remains unchanged. The PRD rule stopping unfinished runs whose pinned scope includes a removed Dataset also remains unchanged.
+
+### Alternatives and checks
+
+- **Action-wide union — recommended:** covers model-context influence without trusting generated code's claims. It can invalidate more Python outputs than strictly necessary.
+- **Per-call declared/read inputs only:** finer retention, but misses source-derived model context and annotations. Python assertions, audit hooks and file-read logs cannot by themselves establish complete causal lineage.
+- **Restricted deterministic transformations:** could permit finer attribution, but introduces another execution/analysis contract beyond the approved arbitrary-Python approach.
+
+The runtime derives dependencies from validated evidence records, never model-provided source lists. Recheck authorization, publication, integrity and current source availability before input use, restoration, publication and access. A missing/invalid dependency blocks publication; no model declaration can revive removed sources. Ownership/deletion race mechanics remain round 5.
+
+Acceptance examples: A+B action with A-only code still depends on B; A-only action with no B-derived context survives B removal; a new A+B chart can be invalidated while unchanged A backing evidence survives; intermediate Python evidence carries transitive dependencies into later actions; chart failure preserves valid numerical evidence without overriding source deletion.
+
+An independent medium-reasoning review found this coherent provided the context boundary and deliberate broader invalidation are explicit. The user approved this lineage policy and corresponding PRD/shared-contract updates. This does not approve the remaining output schemas or claim live enforcement has been verified.
+
+<a id="round-5-approved-lifecycle-recovery-errors-and-stopping"></a>
+
+## Lifecycle, recovery, errors and stopping
 
 Approved 15 November 2026. Reconciles two parallel medium-reasoning investigations: recovery/publication and errors/stopping. Reuse the approved SQL persistence authority and dispatch protocol; no additional service or interpreter checkpoint.
 
@@ -485,7 +522,9 @@ Cover lost acknowledgment/checkpoint after publication, disconnect during execut
 
 The user approved this lifecycle, shared identity/publication/retirement model, deliberate-attempt reuse rule, error dispositions and finite stopping/accounting behavior on 15 November 2026. Live enforcement/recovery remains unverified. Exact evaluation configurations/version pins/thresholds are round 6; final integrated audit is round 7.
 
-## Round 6: approved evaluation, observability and bounded settings
+<a id="round-6-approved-evaluation-observability-and-bounded-settings"></a>
+
+## Evaluation, observability and bounded settings
 
 Approved 15 November 2026. Two parallel medium-reasoning tracks covered fixture/scoring and configuration/cost. This defines a development-evaluation contract, not a measured pass or authorization to spend.
 
@@ -549,7 +588,11 @@ Check that incomplete manifests and exceeded budgets cannot dispatch; all invari
 
 The user approved this evaluation/scoring process, candidate ceilings, manifest/privacy/cost contract and mandatory preflight gates on 15 November 2026. This does not claim measured performance, selected final models, populated build pins or verified provider enforcement. Round 7 audits design completeness and makes these readiness gaps explicit.
 
-## Round 7: approved final audit and handoff
+<a id="round-7-approved-final-audit-and-handoff"></a>
+
+<a id="final-audit-and-handoff"></a>
+
+## Integration requirements and verification gates
 
 Three parallel medium-reasoning audits independently examined contracts, lifecycle and readiness. Contract/lifecycle audits found no consequential new policy blocker. Readiness identified the existing context-policy dependency, incomplete runnable configuration and unrun enablement gates. This is a document audit, not execution evidence.
 
@@ -574,7 +617,39 @@ The specification can guide subsequent component planning and deterministic fixt
 
 The user approved this final packet on 15 November 2026, closing the Python component's design-review rounds with these clarifications and assigned dependencies. This does not erase the readiness gates or claim that PRD milestones 1C, 1D or 1G have been implemented or passed. The broader memory/component designs remain necessary before the agreed implementation phase.
 
-## Historical research findings
+<a id="current-review-and-readiness"></a>
+
+## Implementation readiness
+
+Rounds 1–7 are approved. The component design review is closed with the recorded clarifications and assigned dependencies. Context policy, runnable configuration and runtime enablement remain explicitly gated; no product milestone or live acceptance result is claimed.
+
+## Review history and legacy section map
+
+Original review-stage statements are preserved below and in the guide text. Statements about choices left for a later review describe that historical stage; consult the final contracts and readiness gates for current status.
+
+### Original document status
+
+15 November 2026. **Rounds 1–7 approved; Python Specialist design review closed with explicit gates.** The design has explicit context/configuration dependencies and unrun runtime gates; it is not implementation-ready. No code, paid runs or live verification have been performed.
+
+| Original section | Architectural section |
+| --- | --- |
+| Existing decisions | [Scope and established boundaries](#scope-and-established-boundaries) |
+| Round 1: responsibility and input access | [Responsibility and input access](#responsibility-and-input-access) |
+| Round 2: approved request, context and state | [Request, context and state](#request-context-and-state) |
+| Round 3A: approved tools and code-call lifetime | [Tools and code-call lifetime](#tools-and-code-call-lifetime) |
+| Round 3B: approved target OS isolation profile | [Target OS isolation profile](#target-os-isolation-profile) |
+| Round 4A: approved evidence/chart formats and libraries | [Evidence/chart formats and libraries](#evidencechart-formats-and-libraries) |
+| Round 4B3: approved artifact declarations, values and metadata | [Artifact declarations, values and metadata](#artifact-declarations-values-and-metadata) |
+| Round 4B2: approved terminal return to the supervisor | [Terminal return to the supervisor](#terminal-return-to-the-supervisor) |
+| Round 4B1: approved source dependencies and invalidation | [Source dependencies and invalidation](#source-dependencies-and-invalidation) |
+| Round 5: approved lifecycle, recovery, errors and stopping | [Lifecycle, recovery, errors and stopping](#lifecycle-recovery-errors-and-stopping) |
+| Round 6: approved evaluation, observability and bounded settings | [Evaluation, observability and bounded settings](#evaluation-observability-and-bounded-settings) |
+| Round 7: approved final audit and handoff | [Integration requirements and verification gates](#integration-requirements-and-verification-gates) |
+| Current review and readiness | [Implementation readiness](#implementation-readiness) |
+
+<a id="historical-research-findings"></a>
+
+### Historical research findings
 
 Three independent read-only research tracks covered contracts/data fidelity, execution/recovery, and charts/evaluation. Their initial boundary findings informed the approved round 1 decision. These findings preceded the approved contracts above; they do not supersede those choices or establish live verification.
 
@@ -584,7 +659,3 @@ Three independent read-only research tracks covered contracts/data fidelity, exe
 - **Rendering:** Matplotlib has noninteractive output backends. Plotly supports interactive HTML; static export requires Kaleido and compatible Chrome/Chromium. Rendering choice affects template dependencies, offline behavior and active-content handling. Round 4 selected Matplotlib Agg and PNG; the broader alternatives were not selected. [Matplotlib backends](https://matplotlib.org/stable/users/explain/figure/backends.html), [Plotly HTML API](https://plotly.com/python-api-reference/generated/plotly.io.write_html.html), [Plotly static export](https://plotly.com/python/static-image-export/).
 
 Live library-fidelity, sandbox-enforcement and rendering checks have not run. In particular, approved artifact-only access is a required runtime policy, not something a path naming convention or model instruction can enforce.
-
-## Current review and readiness
-
-Rounds 1–7 are approved. The component design review is closed with the recorded clarifications and assigned dependencies. Context policy, runnable configuration and runtime enablement remain explicitly gated; no product milestone or live acceptance result is claimed.

@@ -1,16 +1,31 @@
-# Answer Specialist design
+# Answer Specialist architecture
 
-15 November 2026. **Rounds 1–6 approved; component design review closed with explicit readiness gates.** Evidence is explicitly part of the immutable input packet. No implementation or paid run has started. Earlier round scope notes describe approval at that time; later approved rounds settle their named contracts.
+This guide is organized by architectural responsibility and contract. Design approval does not establish runtime readiness; configuration and verification gates remain applicable. Review labels are retained in the history appendix for traceability.
 
 [Overall architecture](overall.md) · [Supervisor](supervisor.md) · [SQL Specialist](sql-specialist.md) · [Python Specialist](python-specialist.md)
 
-## Inherited approvals
+## Guide contents
+
+- [Scope and inherited contracts](#scope-and-inherited-contracts)
+- [Responsibility and evidence boundary](#responsibility-and-evidence-boundary)
+- [Request, bounded context and state](#request-bounded-context-and-state)
+- [Draft, claims, citations and formatting](#draft-claims-citations-and-formatting)
+- [Draft identity, Reviewer handoff and revision](#draft-identity-reviewer-handoff-and-revision)
+- [Lifecycle, dependencies, privacy and limits](#lifecycle-dependencies-privacy-and-limits)
+- [Evaluation and readiness gates](#evaluation-and-readiness-gates)
+- [Review history and legacy section map](#review-history-and-legacy-section-map)
+
+<a id="inherited-approvals"></a>
+
+## Scope and inherited contracts
 
 User clarification, 15 November 2026: Answer Specialist and Reviewer act as independent agents, each deciding from its explicit supplied context and role instructions. They do not share a model conversation or implicitly access one another's internal working state/history. Linked drafts/feedback are explicit runtime handoffs, not additional computed evidence or authority to force a decision. The Answer Specialist reports unresolved gaps; the Reviewer assesses the candidate independently against its supplied evidence. This does not require different model families or guarantee independent errors.
 
 Fresh analysis passes from supervisor evidence gathering to this specialist's draft and then Reviewer approval. Direct answers remain with the supervisor. Evidence defects return to the supervisor; draft-only defects return here; evidence defects take precedence. At most two review passes are allowed across the run. Partial fresh answers still require review. Runtime source/deadline/publication gates remain authoritative.
 
-## Round 1: approved responsibility and evidence boundary
+<a id="round-1-approved-responsibility-and-evidence-boundary"></a>
+
+## Responsibility and evidence boundary
 
 ### Approved responsibility
 
@@ -52,7 +67,9 @@ The user approved the evidence-grounded drafting role, absence of execution/calc
 
 Subsequent rounds cover request/context/state; draft/claims/citations and formatting; Reviewer/revision/partial handoff; lifecycle/privacy/limits; and evaluation/final audit. The broader memory policy remains a dependency. At review completion, delete temporary plan Markdown files and repair links as requested, retaining this approved specification and decision log.
 
-## Round 2: approved request, bounded context and state
+<a id="round-2-approved-request-bounded-context-and-state"></a>
+
+## Request, bounded context and state
 
 ### Supervisor request
 
@@ -110,7 +127,9 @@ Reject unknown/duplicate/out-of-scope/invalid evidence or charts, invalid chart 
 
 The user approved the six request fields, bounded runtime packet/no-tools approach and five state fields, with evidence nesting made explicit in response to their question. This does not approve claim/citation locators, display formatting, draft/Reviewer schemas, detailed retry/recovery, broader memory policy or model/configuration limits.
 
-## Round 3: approved draft, claims, citations and formatting
+<a id="round-3-approved-draft-claims-citations-and-formatting"></a>
+
+## Draft, claims, citations and formatting
 
 Two independent parallel medium-reasoning tracks examined claim/reference representation and typed display/validation. Their reconciled recommendation is a small ordered block format, not an unrestricted Markdown document or a general layout language.
 
@@ -179,7 +198,9 @@ Acceptance cases include large integers/decimal ties, scalar NULL versus empty r
 
 The user approved this block/span/target schema, stable packet row locators, runtime value rendering and the initial display policy. This does not select the later Reviewer/result schemas, lifecycle dependency attribution, context compaction, prompts/models, evaluation thresholds or final UI layout.
 
-## Round 4: approved draft identity, Reviewer handoff and revision
+<a id="round-4-approved-draft-identity-reviewer-handoff-and-revision"></a>
+
+## Draft identity, Reviewer handoff and revision
 
 ### Immutable draft and review identity
 
@@ -230,7 +251,9 @@ Test copied/modified draft under an old approval, mismatched feedback IDs/hashes
 
 The user approved the immutable draft/review handoff minimum, three specialist returns, supervisor authorization for partial drafts, feedback routing and durable two-pass accounting. This does not finalize Reviewer internals, lifecycle/error details, source-dependency attribution or evaluation settings.
 
-## Round 5: approved lifecycle, dependencies, privacy and limits
+<a id="round-5-approved-lifecycle-dependencies-privacy-and-limits"></a>
+
+## Lifecycle, dependencies, privacy and limits
 
 Two independent parallel medium-reasoning tracks covered durable lifecycle/source attribution and errors/budgets/privacy. Reuse the existing standalone SQLite authority, moved together to Postgres at integration; no new service or sandbox is needed for drafting.
 
@@ -290,7 +313,11 @@ Cover lost checkpoint/acknowledgment, duplicate/late provider response, stale pr
 
 The user approved this lifecycle/publication model, conservative draft/answer dependency refinement, repair/error boundaries, finite admission/accounting, trace privacy and corresponding PRD/shared-contract updates. This does not authorize numerical settings, live inference, implementation or paid evaluation.
 
-## Round 6: approved evaluation and readiness audit
+<a id="round-6-approved-evaluation-and-readiness-audit"></a>
+
+<a id="evaluation-and-readiness-audit"></a>
+
+## Evaluation and readiness gates
 
 ### Fixtures and acceptance
 
@@ -336,3 +363,21 @@ Forecast every role, case and repetition, including retries, cache/cold assumpti
 The integrated design keeps the supervisor responsible for missing computations, scoped evidence and authorized partial answers; runtime owns identities, rendering, counters, dependency unions and publication; Reviewer owns semantic verdicts under the exact immutable handoff. No new database, execution tool or dependency is selected here.
 
 Remaining dependencies: memory-owned bounded context/compaction and revision packet construction before dependent code; implementation and measurement of Reviewer round 4's approved candidate call/repair/output bounds and reserve admission; complete model/configuration/quality targets/spend caps before evaluation; built identities and actual formatter, privacy, ledger/recovery, invalidation/publication and deadline checks before enablement. No runtime milestone has passed. The user approved round 6 and closed this component's design review with those explicit gates. This does not declare implementation-ready or authorize coding/paid tests. Temporary plan Markdown files have been removed and their references repaired; this specification and the decision log retain the approved contracts.
+
+## Review history and legacy section map
+
+Original review-stage statements are preserved below and in the guide text. Statements about choices left for a later review describe that historical stage; consult the final contracts and readiness gates for current status.
+
+### Original document status
+
+15 November 2026. **Rounds 1–6 approved; component design review closed with explicit readiness gates.** Evidence is explicitly part of the immutable input packet. No implementation or paid run has started. Earlier round scope notes describe approval at that time; later approved rounds settle their named contracts.
+
+| Original section | Architectural section |
+| --- | --- |
+| Inherited approvals | [Scope and inherited contracts](#scope-and-inherited-contracts) |
+| Round 1: approved responsibility and evidence boundary | [Responsibility and evidence boundary](#responsibility-and-evidence-boundary) |
+| Round 2: approved request, bounded context and state | [Request, bounded context and state](#request-bounded-context-and-state) |
+| Round 3: approved draft, claims, citations and formatting | [Draft, claims, citations and formatting](#draft-claims-citations-and-formatting) |
+| Round 4: approved draft identity, Reviewer handoff and revision | [Draft identity, Reviewer handoff and revision](#draft-identity-reviewer-handoff-and-revision) |
+| Round 5: approved lifecycle, dependencies, privacy and limits | [Lifecycle, dependencies, privacy and limits](#lifecycle-dependencies-privacy-and-limits) |
+| Round 6: approved evaluation and readiness audit | [Evaluation and readiness gates](#evaluation-and-readiness-gates) |

@@ -1,8 +1,20 @@
-# Reviewer design
+# Reviewer architecture
 
-15 November 2026. **Agenda and rounds 1–6 approved; component design review closed with explicit readiness gates.** The user also explicitly approved context-only independent agents. Inherited Answer/supervisor handoff rules below remain approved. No coding or live evaluation is authorized.
+This guide is organized by architectural responsibility and contract. Design approval does not establish runtime readiness; configuration and verification gates remain applicable. Review labels are retained in the history appendix for traceability.
 
 [Overall architecture](overall.md) · [Answer Specialist](answer-specialist.md) · [Supervisor](supervisor.md) · [Evaluation and observability](evaluation-observability.md)
+
+## Guide contents
+
+- [Inherited contracts](#inherited-contracts)
+- [Agent independence](#agent-independence)
+- [Responsibilities and verification boundary](#responsibilities-and-verification-boundary)
+- [Request, bounded context and state](#request-bounded-context-and-state)
+- [Verdicts, findings and correction routing](#verdicts-findings-and-correction-routing)
+- [Lifecycle, privacy, limits and reserve admission](#lifecycle-privacy-limits-and-reserve-admission)
+- [Evaluation and calibration](#evaluation-and-calibration)
+- [Integration requirements and verification gates](#integration-requirements-and-verification-gates)
+- [Review history and legacy section map](#review-history-and-legacy-section-map)
 
 ## Inherited contracts
 
@@ -12,34 +24,17 @@
 - At most two logical review passes exist across the run. Recovery/retry cannot grant another verdict or replenish passes. A second rejection ends the analysis/revision flow with the bounded runtime explanation.
 - Runtime authorization, source invalidation, ownership, budgets, hard deadline and exact active-draft checks still gate publication. Final answers retain source dependencies of approving-review inputs, in addition to draft dependencies.
 
-## Approved agent independence
+<a id="approved-agent-independence"></a>
+
+## Agent independence
 
 The Answer Specialist and Reviewer are separate agents. Each makes its own decisions from its explicit supplied context under its role instructions; neither has implicit access to the other's conversation, internal working state or unsupplied chat history. Do not reuse a shared model conversation as their context. Runtime coordination and typed handoffs connect them without merging their decision processes.
 
 The Reviewer receives the candidate as the object being assessed, not as authoritative evidence for its own claims. Supplied prior feedback or revision context can guide checking but cannot dictate a verdict. The Answer Specialist considers linked feedback against supplied evidence and reports unresolved gaps; feedback does not become computed evidence. Missing context is reported rather than presumed. This independence does not require different model families or imply statistically independent errors.
 
-## Approved review agenda
+<a id="round-1-approved-responsibilities-and-verification-boundary"></a>
 
-Work through one contract at a time. Agenda approval authorizes preparing proposals; each consequential component contract still needs its own review.
-
-| Round | Contract and reviewable result |
-| --- | --- |
-| 1. Responsibility and verification boundary | What the Reviewer checks: correctness, claim support, coverage, units/filters/grain, assumptions, request fulfillment and partial disclosures. Decide whether it gets only the frozen supplied packet or any additional retrieval/calculation/visual access, and what verification it can truthfully claim. Distinguish checking evidence-grounded drafting from independently proving upstream computations. |
-| 2. Request, context and state | Reuse exact draft/review binding. Define required resolved evidence, rendered values, original obligations, partial authorization and revision context; explicit visibility/coverage markers and bounded context. Assign runtime versus model ownership, with broader memory policy dependencies. |
-| 3. Verdicts, findings and routing | Refine the inherited verdict schema with actionable, grounded blocking findings, issue scope and sufficiency rules. Distinguish evidence defects from draft defects and inability to complete review from a substantive rejection. Test correct, unsupported, contradictory and truthful partial drafts. |
-| 4. Lifecycle, privacy and limits | Durable pass reservation, immutable request/result, bounded malformed-response repair and transport retries, canonical verdicts, recovery, invalidation and deadlines. Define finite physical-call/token/time/output limits so the Answer drafting reserve becomes computable; keep numeric candidates distinct from measured limits. Reuse shared authority and hosted trace boundaries. |
-| 5. Evaluation and calibration | Versioned numerical, semantic, adversarial, partial, routing and recovery fixtures; must-pass runtime gates separate from model false approvals/rejections and completion. Frozen development/held-out comparisons, model/prompt configuration, complete cost forecasts and finite spending prerequisites. |
-| 6. Integrated audit and closure | Walk through initial approval, evidence replan, draft revision, second rejection, malformed/incomplete review, source removal and restart. Reconcile Answer/supervisor/shared evaluation contracts and review-reserve assumptions. Close with explicit memory/configuration/live-verification gates; remove any temporary plan files and repair references. |
-
-## Working method and scope
-
-Prepare this single agenda in the parent. Use medium-reasoning research subagents only for genuinely independent investigations whose parallel work saves time, after agenda approval; no extra agent for a single second opinion. Any later code writing follows the separate smaller-model delegation rule.
-
-Keep researched options, approved decisions and measured behavior distinct. Any selected retrieval, tool or context expansion must be reviewed before dependent contracts; the existing final-answer dependency rule is mandatory. Do not reopen the two-pass maximum or grant publishing authority to the Reviewer through an internal schema change.
-
-Prompts and exact model settings follow component design. Agenda approval does not authorize implementation, provider calls, paid evaluation or declare the component ready to enable. The agenda lives here rather than in a separate temporary plan file; approved contracts will be recorded in this specification as review proceeds.
-
-## Round 1: approved responsibilities and verification boundary
+## Responsibilities and verification boundary
 
 ### Approved responsibility
 
@@ -77,7 +72,9 @@ Instructions inside source values, labels, chart descriptions or draft text rema
 
 The user approved this responsibility and supplied-packet/no-tools/no-initial-vision boundary. Input/state schemas, detailed finding taxonomy, failure/repair mechanics, numeric limits and evaluation thresholds remain for later rounds. This approval does not authorize coding or live runs.
 
-## Round 2: approved request, bounded context and state
+<a id="round-2-approved-request-bounded-context-and-state"></a>
+
+## Request, bounded context and state
 
 ### Runtime review request
 
@@ -128,7 +125,9 @@ Exercise exact draft versus review packet hashes, missing cited cells, uncited c
 
 The user approved this runtime request, distinct draft/review input binding, full bounded drafting-evidence context and five-field state. Shared Answer handoff hash names and review-context scope are clarified accordingly. Detailed verdict/error schemas, repair/recovery mechanics, numerical limits, context compaction, prompts/models and paid evaluation remain outside this approval.
 
-## Round 3: approved verdicts, findings and correction routing
+<a id="round-3-approved-verdicts-findings-and-correction-routing"></a>
+
+## Verdicts, findings and correction routing
 
 ### Assessment versus operational outcome
 
@@ -186,7 +185,9 @@ Before approval, assess the whole candidate against the original obligations and
 
 The user approved these result variants, minimal actionable findings, grounding and evidence-first routing. The shared Answer feedback contract is updated accordingly. Round 4 still owns durable failure/retry/repair details and finite call/reserve settings; no implementation or live evaluation follows from this approval.
 
-## Round 4: approved lifecycle, privacy, limits and reserve admission
+<a id="round-4-approved-lifecycle-privacy-limits-and-reserve-admission"></a>
+
+## Lifecycle, privacy, limits and reserve admission
 
 Two independent medium-reasoning investigations covered lifecycle/privacy and finite limits/reserves. Reuse Answer's durable authority and inference accounting; no new database, sandbox or service.
 
@@ -251,7 +252,9 @@ Exercise reservation/dispatch crashes, response persistence versus lost checkpoi
 
 The user approved lifecycle/recovery, nonrefundable reservations, stop-on-terminal-failure behavior, bounded repair, privacy and candidate ceilings/reserve arithmetic. Shared Answer/supervisor/evaluation contracts are clarified accordingly, retaining the two-review maximum. Compatible model/configuration, memory policy, spending authorization and live correctness/recovery/privacy/deadline checks remain readiness gates; no code or paid/live tests are authorized.
 
-## Round 5: approved evaluation and calibration
+<a id="round-5-approved-evaluation-and-calibration"></a>
+
+## Evaluation and calibration
 
 Two independent medium-reasoning investigations covered fixtures/runtime gates and scoring/calibration. Reuse [shared evaluation requirements](evaluation-observability.md) and the Answer fixtures, while distinguishing runtime invariants from semantic judgment quality. This round selects an evaluation contract, not a model, measured score or new runtime limit.
 
@@ -309,7 +312,11 @@ Forecast every role × case × repetition, retries, uncertainty, cache/cold assu
 
 The user approved fixtures, must-pass runtime gates, failure-inclusive semantic denominators, actionable finding/routing scores, blind frozen comparisons and reproducibility/spending prerequisites. The shared evaluation contract is updated. This approval does not authorize paid runs, code or a measured readiness claim. Round 6 remains the integrated audit and closure; memory/context policy, exact configuration/targets/spend caps and live checks remain explicit gates.
 
-## Round 6: approved integrated audit and closure
+<a id="round-6-approved-integrated-audit-and-closure"></a>
+
+<a id="integrated-audit-and-closure"></a>
+
+## Integration requirements and verification gates
 
 This is a document consistency audit against the approved Answer, supervisor and shared evaluation contracts. It is not execution evidence. The parent performs this single integrated check; no additional second-opinion agent is needed.
 
@@ -347,3 +354,48 @@ The component contract keeps model judgment separate from runtime authority and 
 No code, live model/provider call, fault-injection test or paid evaluation has run for this review. No runtime milestone has passed. Final cleanup found no temporary plan Markdown files; approved specifications and the decision log are retained. Shared links/statuses are updated.
 
 The user approved the three clarifications and closed Reviewer component design review with these explicit gates. Shared-contract/status updates and final cleanup are complete. Approval does not declare implementation-ready or authorize coding, paid tests or relaxed budgets. Next recommended design dependency is the shared memory/context policy for supervisor, Answer and Reviewer.
+
+## Review history and legacy section map
+
+Original review-stage statements are preserved below and in the guide text. Statements about choices left for a later review describe that historical stage; consult the final contracts and readiness gates for current status.
+
+### Original document status
+
+15 November 2026. **Agenda and rounds 1–6 approved; component design review closed with explicit readiness gates.** The user also explicitly approved context-only independent agents. Inherited Answer/supervisor handoff rules below remain approved. No coding or live evaluation is authorized.
+
+| Original section | Architectural section |
+| --- | --- |
+| Inherited contracts | [Inherited contracts](#inherited-contracts) |
+| Approved agent independence | [Agent independence](#agent-independence) |
+| Round 1: approved responsibilities and verification boundary | [Responsibilities and verification boundary](#responsibilities-and-verification-boundary) |
+| Round 2: approved request, bounded context and state | [Request, bounded context and state](#request-bounded-context-and-state) |
+| Round 3: approved verdicts, findings and correction routing | [Verdicts, findings and correction routing](#verdicts-findings-and-correction-routing) |
+| Round 4: approved lifecycle, privacy, limits and reserve admission | [Lifecycle, privacy, limits and reserve admission](#lifecycle-privacy-limits-and-reserve-admission) |
+| Round 5: approved evaluation and calibration | [Evaluation and calibration](#evaluation-and-calibration) |
+| Round 6: approved integrated audit and closure | [Integration requirements and verification gates](#integration-requirements-and-verification-gates) |
+
+<a id="approved-review-agenda"></a>
+
+### Approved review agenda
+
+Work through one contract at a time. Agenda approval authorizes preparing proposals; each consequential component contract still needs its own review.
+
+| Round | Contract and reviewable result |
+| --- | --- |
+| 1. Responsibility and verification boundary | What the Reviewer checks: correctness, claim support, coverage, units/filters/grain, assumptions, request fulfillment and partial disclosures. Decide whether it gets only the frozen supplied packet or any additional retrieval/calculation/visual access, and what verification it can truthfully claim. Distinguish checking evidence-grounded drafting from independently proving upstream computations. |
+| 2. Request, context and state | Reuse exact draft/review binding. Define required resolved evidence, rendered values, original obligations, partial authorization and revision context; explicit visibility/coverage markers and bounded context. Assign runtime versus model ownership, with broader memory policy dependencies. |
+| 3. Verdicts, findings and routing | Refine the inherited verdict schema with actionable, grounded blocking findings, issue scope and sufficiency rules. Distinguish evidence defects from draft defects and inability to complete review from a substantive rejection. Test correct, unsupported, contradictory and truthful partial drafts. |
+| 4. Lifecycle, privacy and limits | Durable pass reservation, immutable request/result, bounded malformed-response repair and transport retries, canonical verdicts, recovery, invalidation and deadlines. Define finite physical-call/token/time/output limits so the Answer drafting reserve becomes computable; keep numeric candidates distinct from measured limits. Reuse shared authority and hosted trace boundaries. |
+| 5. Evaluation and calibration | Versioned numerical, semantic, adversarial, partial, routing and recovery fixtures; must-pass runtime gates separate from model false approvals/rejections and completion. Frozen development/held-out comparisons, model/prompt configuration, complete cost forecasts and finite spending prerequisites. |
+| 6. Integrated audit and closure | Walk through initial approval, evidence replan, draft revision, second rejection, malformed/incomplete review, source removal and restart. Reconcile Answer/supervisor/shared evaluation contracts and review-reserve assumptions. Close with explicit memory/configuration/live-verification gates; remove any temporary plan files and repair references. |
+
+
+<a id="working-method-and-scope"></a>
+
+### Working method and scope
+
+Prepare this single agenda in the parent. Use medium-reasoning research subagents only for genuinely independent investigations whose parallel work saves time, after agenda approval; no extra agent for a single second opinion. Any later code writing follows the separate smaller-model delegation rule.
+
+Keep researched options, approved decisions and measured behavior distinct. Any selected retrieval, tool or context expansion must be reviewed before dependent contracts; the existing final-answer dependency rule is mandatory. Do not reopen the two-pass maximum or grant publishing authority to the Reviewer through an internal schema change.
+
+Prompts and exact model settings follow component design. Agenda approval does not authorize implementation, provider calls, paid evaluation or declare the component ready to enable. The agenda lives here rather than in a separate temporary plan file; approved contracts will be recorded in this specification as review proceeds.
