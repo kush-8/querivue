@@ -6,6 +6,8 @@ Design-status addendum, 18 November 2026: integration rounds 1–7 are approved,
 
 ## Current position
 
+Final-phase closure addendum, 20 November 2026: the user approved ingestion/profile/lifecycle and sandbox contracts, [role prompts/models](architecture/role-prompts-models.md), the direct free-provider exception and finite evaluation design. The [decision log](memory.md#final-agent-architecture-phase-closure--20-november-2026) retains rationale and remaining owners; the temporary phase plan is removed at handoff. Exact builds/account/protocol/resource enforcement, authored/frozen fixtures and runtime/model results remain gates. The earlier next-phase recommendation is superseded; the source audit below is still the 15 November audit. Next work is a separately scoped standalone-agent implementation plan, not another agent architecture review round or automatic coding.
+
 The project has approved product foundations and substantial specialist designs. SQL is approved; Python, Answer and Reviewer component design reviews are closed with explicit prerequisites and unrun gates. The complete agent/system design is not finished, and approved designs are not evidence of working functionality.
 
 Implementation remains the starter scaffold: [agent entry](../agent/src/querivue_agent/__init__.py) exposes `hello()`, [agent configuration](../agent/pyproject.toml) has no runtime dependencies or CLI entry, [Django URLs](../backend/config/urls.py) expose only admin, starter settings use SQLite, and [React App](../frontend/src/App.tsx) is the Vite counter screen. The [README](../README.md) accurately describes the apps as separate starters. No implemented PRD agent milestone 1A–1G or completed integrated build phase 1–8 was found.

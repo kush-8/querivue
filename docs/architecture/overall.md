@@ -16,8 +16,11 @@ Organized 14 November 2026. Confirmed foundations and remaining design work; com
 | [Answer Specialist](answer-specialist.md) | Rounds 1–6 approved; design review closed with explicit readiness gates. |
 | [Reviewer](reviewer.md) | Rounds 1–6 approved; design review closed with explicit context/runtime/evaluation gates. |
 | [Evaluation and observability](evaluation-observability.md) | Supervisor evaluation, traces, execution limits, inference and cost. |
+| [Role prompts and models](role-prompts-models.md) | Approved initial role instructions, comparison baseline and development provider policy; exact pins and measured selection remain gates. |
 
 ## System boundaries
+
+Agent architecture design closed 20 November 2026: ingestion/catalog/profile and preparation lifecycle, sandbox compatibility/admission/retirement, role prompts/provider policy and the finite comparison design are approved. [Closure and remaining owners](../memory.md#final-agent-architecture-phase-closure--20-november-2026) distinguish this from implementation/readiness. Direct Google/NVIDIA/Cloudflare inference adapters are an approved synthetic/public-data development exception to earlier OpenRouter-only wording; [provider configurations](role-prompts-models.md#provider-configurations) is authoritative. All calls stay outside the execution sandbox, with identical local validation, accounting and privacy gates. Infrastructure replacements and paid/live runs are not authorized by that exception.
 
 The React frontend communicates with Django APIs. Background workers import the independent agent package. Application metadata lives in Postgres; uploaded and generated files live in shared persistent storage. Sandboxes process authorized files, while model calls run in the worker. Detailed backend, worker and frontend designs remain in their agreed later phases.
 

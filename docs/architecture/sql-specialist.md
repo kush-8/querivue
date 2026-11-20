@@ -27,7 +27,7 @@ This is a component design. It does not authorize implementation.
 
 A SQL action answers one delegated analytical objective using authorized prepared tables and prior evidence. It may inspect schemas, run diagnostic queries, generate and correct SQL, and return verified tabular evidence or a structured issue. A new analytical objective returns to the supervisor.
 
-The worker owns the specialist graph and OpenRouter calls. Trusted execution runs SQL inside the run sandbox. The parent node validates the specialist output and resolves selected evidence into actual bounded tables for the supervisor. Python receives complete authorized Parquet artifacts through their references.
+The worker owns the specialist graph and model calls under the approved [provider policy](role-prompts-models.md#provider-configurations), including its bounded direct-provider development exception. Trusted execution runs SQL inside the run sandbox. The parent node validates the specialist output and resolves selected evidence into actual bounded tables for the supervisor. Python receives complete authorized Parquet artifacts through their references.
 
 Each uploaded Dataset has an immutable DuckDB database. Ingestion, import confirmation, and Dataset publication are covered by [Data ingestion](data-ingestion.md). All selected tables must be ready before analysis. Removing a pinned source invalidates the run under the PRD.
 

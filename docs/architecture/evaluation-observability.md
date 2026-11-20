@@ -26,7 +26,7 @@ Trace decisions, task and action dispatch, attempts, checkpoint resumes, reviews
 
 ## Agent inference and evaluation cost
 
-Use OpenRouter for inference across all model-powered agent components, including the supervisor, specialists, and reviewer. Choose model configurations by role after evaluating candidates. Before running the full evaluation suite, forecast its cost using the planned cases, repetitions, expected token usage by role, and provider rates, with cache assumptions stated explicitly. After the run, report actual billed model usage and costs, including cached tokens and retries where applicable. Compare forecast with actual spend and report any separately billed evaluation costs, such as sandbox usage or external judges, within the same stated scope.
+Use the approved [provider policy](role-prompts-models.md#provider-configurations) for every model-powered component. OpenRouter remains the general route, with explicit direct Google/NVIDIA/Cloudflare adapters permitted for synthetic/public-data development under zero paid-spend caps. Choose model configurations by role after evaluating candidates. Before running the full evaluation suite, forecast its cost using the planned cases, repetitions, expected token usage by role, and provider rates, with cache assumptions stated explicitly. After the run, report actual billed model usage and costs, including cached tokens and retries where applicable. Compare forecast with actual spend and report any separately billed evaluation costs, such as sandbox usage or external judges, within the same stated scope.
 
 ## Evaluation-driven execution limits
 
@@ -110,3 +110,77 @@ Before paid work, forecast every role × case × repetition including repairs/re
 | Application integration | Backend/worker/UI owners: API/storage migrations, job delivery and later browser/worker/clarification/source-removal behavior under same authority. Broker/service/API details belong to their phases. | Separate downstream design/build work; not certified by standalone evidence. |
 
 These gates are scoped: finish the required ingestion/sandbox design and obtain an approved implementation plan before dependent coding; assemble complete manifests/enforceable bounds and applicable spend authorization before executions; require passed applicable runtime gates and predeclared quality targets before accepting/enabling the claimed capability. Do not require completed Postgres/UI work to prove a standalone CLI milestone, or claim those downstream checks from CLI evidence. No new application feature, manual Stop UI or deployment is added by runtime cancellation/invalidation contracts.
+
+<a id="proposed-final-phase-comparison-configuration"></a>
+
+## Final-phase comparison configuration
+
+Prepared 19 November 2026; **comparison design approved 20 November 2026**. This extends the approved acceptance contract with a bounded candidate suite; fixtures remain unimplemented, targets require the stated pre-run freeze, and no results or run authorization are claimed. [Role prompts/models](role-prompts-models.md) owns prompt/provider/baseline choices; [sandbox execution](sandbox-execution.md#environment-admission-and-lifecycle-contract) owns resource/isolation settings. Existing role/run counters and protected review/finalization reserves remain unchanged. See the [phase closure](../memory.md#final-agent-architecture-phase-closure--20-november-2026).
+
+### Fixture manifest and independent oracles
+
+Propose manifest `querivue-eval-v1`: 24 development cases `D01`–`D24` and 24 separately authored held-out cases `H01`–`H24`, two cases per family below. These IDs/specifications are a finite construction plan; no files or gold answers are claimed to exist. Families here are reporting categories. Split separation is at the underlying schema/question/metric-template generation family, not just random seeds, renamed columns or different numeric constants. Freeze generator/template identities and assert no overlap before held-out use. Do not use held-out fixture contents or results to tune prompts; exposed cases move to development and require a new held-out version.
+
+| IDs in each split | Family / required distinction | Oracle and expected events |
+| --- | --- | --- |
+| 01–02 | Selection/grouping; two independently specified filters/populations | Python standard-library integer/Decimal reference calculation from fixture rows, not the system's DuckDB SQL. Query provenance must match the requested scope. |
+| 03–04 | Cross-Dataset joins; one-to-many versus duplicate-key trap | Independently enumerated joined row pairs and per-key totals. Assert correct grain and no hidden Cartesian inflation. |
+| 05–06 | Exact decimals/integers; computed rate including zero-denominator policy | Decimal/Fraction oracle with explicit scale/rounding and expected undefined/clarification behavior. No float-based gold. |
+| 07–08 | Date-only/timezone-free versus offset/DST boundary | Frozen expected membership from explicit instants/confirmed zone rules. Ambiguous meaning requires the scripted linked clarification, never guessed local time. |
+| 09–10 | Empty result versus null/all-null semantics | Explicit row population, count/null counts and supported empty-result evidence. Distinguish no observations from a numerical zero. |
+| 11–12 | SQL-to-Python handoff; derived numerical calculation | Independent closed-form/reference calculation and exact Parquet schema/coverage assertions; Python loads complete authorized evidence, never preview-only rows or prepared files. |
+| 13–14 | Chart backing; successful chart versus injected renderer failure | Numerical oracle plus artifact/renderer checks. Case 14 requires a useful reviewed partial retaining correct numbers and explicitly missing chart; no success claim for rendering. |
+| 15–16 | Relevant conceptual Direct; analytics and product help | Frozen rubric for correct relevant explanation, complete obligations and zero analytical dispatch. No invented Project facts. |
+| 17–18 | Direct reuse/profile; faithful existing values versus requested new arithmetic | Case 17 requires supplied typed-cell reuse without execution. Case 18 changes the requested derived quantity and must route to fresh computation; metadata references alone cannot answer. |
+| 19–20 | Analytical clarification; definition and ambiguous follow-up | One focused neutral question, scripted accepted linked reply and exact same-run resume. Original scope/counters survive; no inferred confirmation. |
+| 21–22 | Review correction; draft-only versus evidence-first defect | Inject one known initial defect into a recorded candidate/evidence boundary. Assert correct routing, supported final candidate and at most two review passes. Compare model quality on identical injected artifacts, not different accidental mistakes. |
+| 23–24 | Recovery/invalidation; lost acknowledgment versus source deletion | Case 23 restores identical committed output without a new publish/call. Case 24 deletes a pinned source before final commit and requires invalidation/withholding. A stale successful response must not publish. |
+
+Every case records original wording/obligations, deterministic source bytes/settings and hashes, entry disposition, expected route/outcome, required/forbidden events, gold method/result with units/precision/coverage, scripted replies/fault point, applicable gates and source dependencies. Case 14 expects authorized partial and case 24 expects invalidation; the other 22 are complete-answer eligible. Correct end-to-end outcome uses all 24; complete-answer rate uses the 22 eligible cases and separately reports all-case complete publication. Correct authorized partial is reported separately.
+
+Fixture construction may expose development gold; held-out gold remains protected from tuning. A second human/reference review must check fixture intent and the independent oracle before freeze. Ambiguous rubrics are resolved before comparing configurations. No model judge is required initially: deterministic checks plus blinded operator adjudication with recorded disagreements are sufficient for this personal project. Do not claim blind independent adjudication when one person can identify a configuration from its output.
+
+### Deterministic acceptance gates separate from model quality
+
+The 48-case model suite is not a substitute for exhaustive format/runtime fixtures. Build the following finite gate groups using scripted model returns and synthetic nonsecret sentinels; each group expands to explicit assertions in its versioned manifest. Every applicable assertion must pass, and no unexecuted group is a pass.
+
+| Gate group | Minimum assertions / owning contract |
+| --- | --- |
+| G01: supported import formats | CSV, TSV, flat JSON, JSONL, Parquet, XLSX and SQLite successful readiness and faithful typed values. |
+| G02: lexical/type fidelity | Empty versus NULL/whitespace, leading zeros, duplicate JSON keys/nesting, large integer/decimal overflow, nonfinite/unsupported values and full-table errors beyond preview. |
+| G03: spreadsheet/SQLite boundary | Saved/missing/error formula cache, merges/range selection, ZIP/XML expansion, SQLite virtual/views/executable schema, mixed types and missing WAL. |
+| G04: catalog/profile/temporal | Stable collision mappings, exact typed locators/null counts/key-check status, epoch/offset/DST cases, profile corruption and forbidden Direct arithmetic. |
+| G05: preparation authority | Competing attempts/settings, crash before/after transfer/commit, lost acknowledgment, all-selected-table publication, replacement success/failure and source-deletion race in both transaction orders. |
+| G06: sandbox enforcement | Approved SQL/Python policies, process/FD/filesystem/network separation, resource/fork/disk/output limits, hostile declared outputs and isolated validators on the actual built environment. |
+| G07: retirement/recovery | Worker disconnect, unreachable command, child surviving parent, retirement before replay/cleanup and retained reservation for uncertain work; pause is not proof. |
+| G08: context/access/privacy | Same-Chat/cutoff/scope, hostile cells, source invalidation, required packet overflow, private role separation and synthetic trace redaction sentinels. |
+| G09: counters/control/publication | Entry/clarification bounded retries, queue validation, no-progress, Direct latch, review pass reservation/failure and duplicate/source/deadline publication races. |
+| G10: canonical persistence | All ten approved persistence acceptance families, missing/stale/ahead/incompatible Redis projection and fresh-process recovery; no checkpoint as competing authority. |
+
+### Stages, repetitions and candidate targets
+
+Primary comparison: specialists F1 versus `single-analysis-v1` F1, same allowed capabilities and development resource profile. Use alternating configuration order per case/repetition and the same frozen fixture bytes; there is no deterministic-seed promise from providers. Record cold/warm/cache observations without assuming cache savings. All scheduled repetitions count, including timeouts and no verdict.
+
+| Stage | Scheduled work | Progression requirement / paid ceiling |
+| --- | --- | --- |
+| Runtime gates | All applicable G01–G10 assertions | Hard-gate pass before the corresponding live capability; scripted tests cannot prove provider isolation. $0 paid usage. |
+| Smoke | D01, D11, D15 and D19 × 2 architectures × 1 repetition = 8 full flows | Validate manifests, protocol/account access, bounded completion and cost recording before broader work. $0. |
+| Development | D01–D24 × 2 architectures × 1 repetition = 48 full flows | Tune only here; changed prompts/configuration receive new versions. $0. |
+| Frozen held-out | H01–H24 × 2 architectures × 3 repetitions = 144 full flows | Freeze data/gold/splits/rubric/configuration/targets first; no tuning or rerunning only failures. $0. |
+| Matched Reviewer comparison | 12 fixed development candidates × F1/F2 Reviewer × 3 repetitions = 72 assessments | Six correct candidates paired with six single-defect candidates: wrong value, filter/grain, unsupported calculation, unseen-population claim, missing deliverable and contradiction. No extra live generation of candidates. $0. |
+
+Total planned primary full flows: 200, plus 72 role-only assessments. Repeating development after tuning is a separately declared bounded batch; it is not silently included in this total or authorized by this design. F3/P1 are optional later experiments and are absent from these counts. A quota stop records an incomplete stage, not a reason to buy capacity or substitute a model. Smaller batches may establish protocol readiness, never completion of the full comparison.
+
+Propose targets for pre-run review/freeze: all applicable hard gates pass; held-out correct end-to-end outcome ≥90% of 72 scheduled repetitions per architecture (at least 65/72), and complete supported answers ≥90% of 66 complete-eligible repetitions (at least 60/66). Report per-case majority outcomes and all family slices so repeated easy cases cannot hide systemic failures. The two expected partial/invalidation cases still contribute to correct-outcome metrics; they do not count as complete answers. No unsafe/unauthorized publication is allowed, even if aggregate semantic accuracy passes.
+
+For matched Reviewer development assessment, target zero false approvals among the 18 scheduled defective candidates and ≥90% approvals of the 18 correct ones (at least 17/18); no-verdict remains a failure to complete, never a correct rejection. These small samples support development selection only, not general safety claims. Report intervals/counts and treat different-family review as an experiment, not proof of independent errors. Use correctness first, then complete-answer rate, then cost/active latency among qualifying configurations; keep the simpler/cheaper configuration when evidence does not establish a useful improvement.
+
+Retain the PRD's proposed 90-second p95 for eligible demo-sized completed flows as a separate performance target, reporting failures, partials, all-scheduled active/wall distributions and quota wait separately. It does not replace the existing 600-second active/60-minute hard run limits or make slow failures disappear. No winner or satisfied target is claimed before measurement.
+
+### Spend preflight and reserves
+
+Proposed development ceiling is USD 0 at operator, Project, intake, action, run and suite levels, including model, judge, sandbox, storage and account base fees. Provider-specific free quotas remain additional nonmonetary limits; they do not translate to infinite token allowance. Existing paid subscriptions/credits and previously purchased capacity must be disclosed and separately authorized rather than silently treated as zero cost. No paid fallback, automatic recharge or credit-funded sandbox run is assumed. If the approved isolation environment is unavailable within the authorized envelope, execution cases remain blocked while local scripted gates may proceed only under their implementation authorization.
+
+Before any future paid comparison, produce a numeric forecast for the exact scheduled batch and all branches, using dated selected-endpoint rates, zero cache-discount assumptions and maximum physical calls/token reserves allowed by each existing role bucket. Sum text input, generated/hidden reasoning, repairs/retries/unknown completions, judges, sandbox idle/transfer/validation/retirement time, storage/operations and base fees/taxes where applicable. Do not double-charge reasoning already included in a provider's completion total or charge successful replay as a new call; uncertain billing remains reserved until reconciled. Missing usage/rates/enforceable caps blocks admission instead of receiving a zero estimate.
+
+The finite role allocations, actual candidate prompts and per-request ceilings determine a conservative run forecast; multiply by scheduled cases/repetitions only after adding intake/linked-reply and reviewer-only work. Reserve required terminal Supervisor/Answer/Reviewer/finalization capacity before optional analysis. Ask for any paid authorization only with that complete forecast and explicit per-scope caps. Positive spending limits have not been selected or approved here. Reconcile each batch with provider billing/usage and retain both expected and actual costs, uncertainty and quota-related incomplete cases.

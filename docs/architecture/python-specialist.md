@@ -29,7 +29,7 @@ The supervisor owns routing and delegation. SQL handles simple counts and compar
 
 Authorized tabular evidence already has a shared handoff: complete typed Parquet, exact schema and row count, bounded previews, original/artifact column mappings, integrity metadata, producer provenance, and direct/transitive source dependencies. The approved SQL design supports compatible evidence from SQL and future Python producers. Round 1 separately approved evidence artifacts as Python's exclusive initial data inputs.
 
-Run scope, source invalidation, read-only inputs, no outbound internet, worker-side OpenRouter calls, per-action execution contexts and persistent reusable outputs remain existing requirements. Their enforcement in the eventual Python runtime is not verified.
+Run scope, source invalidation, read-only inputs, no outbound internet, worker-side model calls under the [approved provider policy](role-prompts-models.md#provider-configurations), per-action execution contexts and persistent reusable outputs remain existing requirements. Their enforcement in the eventual Python runtime is not verified.
 
 <a id="round-1-responsibility-and-input-access"></a>
 
@@ -570,7 +570,7 @@ The evaluation manifest records configuration ID/hash, repository commit plus an
 
 Collect identities from the built and inspected environment. Exact installed pins/template hashes cannot truthfully be invented before that build; their populated manifest and compatibility checks remain a readiness gate, to be identified explicitly in the final audit. Changed environment/profile identities require the relevant gates again. This is reproducibility of inputs/configuration and measured variation, not a promise of deterministic model output.
 
-For every model role record OpenRouter requested model, inference settings and provider/routing/fallback policy; actual provider/model metadata when exposed; request/generation IDs and dated rate snapshot with units/currency. Record unknown revision/usage as unknown, never zero. Actual route changes define a separate comparison configuration. No specific model, current price or spend allowance is selected by this proposal.
+For every model role record the gateway/direct-provider requested model, inference settings and provider/routing/fallback policy; actual provider/model metadata when exposed; request/generation IDs and dated rate snapshot with units/currency. Record unknown revision/usage as unknown, never zero. Actual route changes define a separate comparison configuration. No specific model, current price or spend allowance is selected by this proposal.
 
 ### Traces, cost and experiment admission
 
