@@ -7,6 +7,7 @@ Organized 14 November 2026. Confirmed foundations and remaining design work; com
 | Document | Scope |
 | --- | --- |
 | [Project status review](../status-review.md) | Current design/implementation status, outstanding owners and recommended sequence. |
+| [Standalone implementation plan](../implementation/standalone-agent.md) | Proposed file/interface/task sequence and acceptance checks for agent milestones 1A–1G; pending implementation-plan review. |
 | [Data ingestion](data-ingestion.md) | Upload preparation, import confirmation, formats and immutable dataset publication. |
 | [Sandbox execution](sandbox-execution.md) | Execution isolation, storage handoff and the E2B assessment. |
 | [Supervisor](supervisor.md) | Planning, state, delegation, outcomes and review flow. |

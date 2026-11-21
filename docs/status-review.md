@@ -6,6 +6,8 @@ Design-status addendum, 18 November 2026: integration rounds 1–7 are approved,
 
 ## Current position
 
+Implementation-planning addendum, 21 November 2026: the user requested complete planning before code. The [standalone implementation guide](implementation/standalone-agent.md) now proposes the exact source/test placement, interfaces, 18-task dependency sequence, CLI surface and checks for 1A–1G. It awaits review; dependency metadata is not a resolved lock, and no build/service/test/inference ran in preparing it. The [temporary phase document](standalone-agent-implementation-planning.md) remains until approved closure. The older source audit below remains historical.
+
 Final-phase closure addendum, 20 November 2026: the user approved ingestion/profile/lifecycle and sandbox contracts, [role prompts/models](architecture/role-prompts-models.md), the direct free-provider exception and finite evaluation design. The [decision log](memory.md#final-agent-architecture-phase-closure--20-november-2026) retains rationale and remaining owners; the temporary phase plan is removed at handoff. Exact builds/account/protocol/resource enforcement, authored/frozen fixtures and runtime/model results remain gates. The earlier next-phase recommendation is superseded; the source audit below is still the 15 November audit. Next work is a separately scoped standalone-agent implementation plan, not another agent architecture review round or automatic coding.
 
 The project has approved product foundations and substantial specialist designs. SQL is approved; Python, Answer and Reviewer component design reviews are closed with explicit prerequisites and unrun gates. The complete agent/system design is not finished, and approved designs are not evidence of working functionality.

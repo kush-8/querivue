@@ -68,13 +68,13 @@ Maintain one authoritative architectural contract per topic; summaries link to i
 
 These model settings govern the development agents working on this repository.
 
-- Use gpt-6.1-sol with high reasoning as the coding supervisor.
-- Always delegate code-writing tasks to gpt-6-sol with explicit medium reasoning, or a smaller available model with medium reasoning for simpler tasks. Do not implement code directly in the supervisor, including single-task work.
+- Use GPT 6 Astra (`gpt-6-astra`) with explicit medium reasoning as the coding supervisor, per the user's 21 November 2026 correction. This supersedes the earlier supervisor setting and the interim Astra Light request.
+- Always delegate code-writing tasks to lower available models with explicit medium reasoning, including single-task work; `gpt-6.1-sol` at medium is the initial available worker choice. The coding supervisor reviews, integrates and verifies rather than writing implementation itself. These settings govern development agents, not Querivue's runtime Supervisor/model allocations.
 - Give each coding subagent only the context needed for its bounded task: applicable plan/specification excerpts, relevant architecture and interfaces, affected files, constraints, and acceptance criteria. Start with a fresh context rather than inheriting the full conversation; supply additional targeted context only when needed.
 - During coding, compact context when usage reaches 60% of the available context window, for the supervisor and each subagent. Before compaction, save a concise handoff covering the current task, approved decisions, affected files, completed work, verification results, unresolved issues, and next steps. If the host does not expose context usage or manual compaction, state that limitation and use a fresh agent context with the saved handoff where supported; do not claim the threshold was enforced.
 - The supervisor reviews the submitted code, checks integration and verification results, and ensures the implementation follows the approved plan and architecture.
 - Bring any new design or implementation decision to the user before writing dependent code. Carry forward decisions already approved.
-- Select the requested model and reasoning settings when creating coding agents. If the host cannot switch the current supervisor model, disclose that limitation and obtain the user's direction before beginning coding under different settings.
+- Select the requested model and reasoning settings explicitly when creating coding agents. If the active chat cannot switch models, it may remain the planning/reporting coordinator and delegate coding supervision to a fresh-context `gpt-6-astra` medium agent, which delegates implementation to lower medium-reasoning workers. Supply task/specification excerpts rather than full chat/docs. Do not claim the active chat changed model. If the requested supervisor or a suitable lower worker is unavailable at actual dispatch, report the exact limitation before substituting settings; do not re-ask about the already selected workflow when those models are available.
 
 ## Coding and frontend skills
 
