@@ -1,5 +1,28 @@
 # Standalone agent implementation planning — working document
 
+## Runtime settings review — 23 November 2026
+
+**Proposed, awaiting user review.** The user requested completion of remaining coding and selected preparation of settings for review. Existing architecture approvals and offline coding authorization carry forward; the older planning-only status/history below does not revoke them. These settings close configuration omissions, not provider or sandbox verification gates. Keep live execution disabled until its separately owned admission checks and authorization are satisfied.
+
+| Setting | Proposed initial value | Reason / verification boundary |
+| --- | --- | --- |
+| Execution profile | `offline`; live model, sandbox and paid routes disabled | Deterministic contracts/runtime tests can proceed without external effects. No host execution fallback for generated code. |
+| Spending | Exact decimal USD `0.00` at operator, project, intake, action, run and evaluation-suite scopes, including separate sandbox/storage/validator allocations | Preserve the approved zero-paid-spend boundary. Missing pricing, unknown charge exposure or unenforceable free entitlement blocks dispatch; zero is not unlimited. No cache discount assumed. |
+| Provider selection | No active provider in offline mode; retain the approved F1/F2/F3/P1 menu as named, disabled candidates | Do not treat dated catalog names as verified available endpoints. Actual account, endpoint, SDK/protocol, tokenizer, price schedule and privacy evidence must be pinned before selecting a live profile; no implicit fallback. |
+| Build identity | Keep existing Python 3.12 package target and lock; record exact interpreter/platform, lock digest and installed dependency versions from the built environment | Existing handoff reports Python 3.12.1, Pydantic 2.14.4 and pytest 9.2.0. These are baseline evidence, not fabricated identities for future builds. Guest image, parser/Arrow/DuckDB, schema/codec, renderer/browser and provider protocol identities remain explicitly unavailable until their owning tasks build/test them. Required unavailable identity blocks that capability. |
+| Coordinator lease / heartbeat | 30 seconds / 5 seconds | Allow several renewals within one lease. Every write still checks generation and unexpired lease; expiry cannot prove external work stopped. Test takeover and delayed renewal before enabling runtime effects. |
+| SQLite busy wait / transaction target | 1 second maximum busy wait; no external work inside transactions | Bound local lock contention well below a lease. Recheck validity after lock acquisition; timeout fails the transition, never bypasses fencing. The target is not proof of actual latency. |
+| Operator / project concurrent runs | 1 / 1 initially | Conservative local development within the approved maximum of two independent branches per admitted run. Actual two-branch execution remains gated on resource/isolation proof. |
+| Operator / project new intakes | 20 / 10 per rolling hour, at most one active assessment per operator/project | A new run cannot reset aggregate admission/accounting. Count original submissions once by stable key; linked replies keep their existing chain/request limits and also consume physical assessment allocations. Rate-limit failures do not call the provider. Persist counters across restart. |
+| Entry clarification expiry | 15 minutes from its durable waiting record; never beyond a linked run deadline | Bounds pre-run waiting without extending an existing run. Only one entry question/reply per chain remains allowed. |
+| Analytical clarification expiry | Proposed 15 minutes, capped by unchanged run hard deadline | Supply the architecture's required finite duration. Waiting does not replenish the run or role budgets. |
+| Rejected/unadmitted staged upload cleanup | 24 hours after final denial/expiry; explicit user deletion still applies immediately | Applies only to temporary unadmitted upload bytes. Accepted Datasets, Chats, evidence and durable accounting retain their existing user-deletion policy; this is not automatic deletion of accepted content. Reconcile pending transfers and references before cleanup. |
+| Role/run limits and reserves | Reuse the approved candidate tables, without increasing allowances | In particular preserve two review passes, the run token caps and protected Answer/Reviewer/finalization reserves. Settings above do not prove measured adequacy. |
+
+The numerical lease, rate, entry-expiry and staging-cleanup values are new development proposals, not measured production recommendations. Runtime settings validation must reject missing/invalid/nonfinite required values, unknown keys and incompatible profiles, exclude credentials from stored configuration and digests, and fail closed before any service contact. Operational timing tests, account/free-tier enforcement, exact build/protocol identity and actual spending verification remain outstanding.
+
+Review choice: accept these values as offline-development configuration candidates, or revise the proposed timing/admission/temporary-cleanup values. Acceptance does not activate a live profile or authorize paid execution.
+
 Started 20 November; review draft completed 21 November 2026, at the user's request to complete implementation planning before coding. Agent architecture is approved and closed. This phase authorizes repository inspection, official-source research and reversible planning-document edits only; no production code, dependency installation, inference, sandbox session or paid run.
 
 ## Objective
