@@ -134,6 +134,8 @@ Commands below run from `agent/`. Every task starts by inspecting its exact owne
 
 ### T01 — Strict contracts, configuration and package test harness
 
+**Progress — 22 November 2026:** The initial scalar/test-harness slice is implemented: eleven strict scalar variants and canonical runtime UUID validation, Pydantic 2.14.4/pytest 9.2.0 resolved in `uv.lock`, and live/Redis tests excluded by default. All 119 scalar tests pass on Python 3.12.1; wheel build/contents and marker exclusion are verified. Focused code review passed. Full T01 remains incomplete: configuration, parent/action/result/evidence/ledger models, remaining core dependencies and their acceptance tests are outstanding. No live execution or milestone acceptance is claimed.
+
 **Files:** Modify `agent/pyproject.toml`, `uv.lock`; create `.python-version`, `config/development.toml`, `src/querivue_agent/config.py`, `contracts/{values,evidence,actions,responses,records}.py`, `tests/unit/test_contracts.py`, `tests/unit/test_config.py` and necessary empty package markers. Keep existing `__init__.py`/`py.typed` behavior.
 
 **Interfaces:** Produces all shared vocabulary above, using existing approved payload fields/unions; `load_config(path: Path, env: Mapping[str, str]) -> RunConfig`. Consumers import models from their owning contract module, not a barrel. Config excludes secret values from hashes/serialization and defaults live execution to disabled.
