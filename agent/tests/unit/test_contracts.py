@@ -4,7 +4,7 @@ import pytest
 from pydantic import TypeAdapter, ValidationError
 
 from querivue_agent import hello
-from querivue_agent.contracts.values import RuntimeUUID, TypedScalar
+from querivue_agent.contracts.values import CanonicalUUID, RuntimeUUID, TypedScalar
 
 
 SCALAR = TypeAdapter(TypedScalar)
@@ -124,6 +124,22 @@ def test_runtime_uuid_preserves_canonical_v4():
 def test_rejects_noncanonical_runtime_uuid(value):
     with pytest.raises(ValidationError):
         TypeAdapter(RuntimeUUID).validate_python(value)
+
+
+def test_canonical_uuid_accepts_existing_non_v4_identity():
+    value = "123e4567-e89b-12d3-a456-426614174000"
+    assert TypeAdapter(CanonicalUUID).validate_python(value) == value
+
+
+@pytest.mark.parametrize("value", [
+    "123E4567-E89B-12D3-A456-426614174000",
+    "123e4567e89b12d3a456426614174000",
+    "{123e4567-e89b-12d3-a456-426614174000}",
+    "invalid", 123, b"123e4567-e89b-12d3-a456-426614174000",
+])
+def test_canonical_uuid_rejects_noncanonical_forms(value):
+    with pytest.raises(ValidationError):
+        TypeAdapter(CanonicalUUID).validate_python(value)
 
 
 def test_existing_hello_export():

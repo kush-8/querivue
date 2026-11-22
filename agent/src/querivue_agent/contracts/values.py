@@ -25,6 +25,13 @@ def _uuid4(value: str) -> str:
     return value
 
 
+def _canonical_uuid(value: str) -> str:
+    if str(UUID(value)) != value:
+        raise ValueError("expected a canonical lowercase hyphenated UUID")
+    return value
+
+
+CanonicalUUID = Annotated[str, Field(strict=True), AfterValidator(_canonical_uuid)]
 RuntimeUUID = Annotated[str, Field(strict=True), AfterValidator(_uuid4)]
 
 
