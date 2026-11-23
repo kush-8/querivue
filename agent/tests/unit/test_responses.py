@@ -6,7 +6,7 @@ import pytest
 from pydantic import TypeAdapter, ValidationError
 
 from querivue_agent.contracts.responses import (
-    ErrorCode, ErrorDisposition, ErrorStage, PythonBlocked, PythonFailed,
+    ActionOutcome, ErrorCode, ErrorDisposition, ErrorStage, PythonBlocked, PythonFailed,
     PythonOutcome, PythonSucceeded, SQLBlocked, SQLFailed, SQLOutcome,
     SQLSucceeded, ToolError,
 )
@@ -283,3 +283,76 @@ def test_outcome_references_accept_existing_non_v4_ids():
 def test_sql_success_still_requires_nonempty_evidence():
     with pytest.raises(ValidationError, match="at least 1 item"):
         ADAPTER.validate_python({**SUCCEEDED, "evidence_ids": []})
+
+
+def test_action_outcome_projects_sql_references_exactly():
+    payload = {
+        "task_id": "00000000-0000-4000-8000-000000000001",
+        "action_id": "00000000-0000-4000-8000-000000000002",
+        "attempt": 1,
+        "result_ref": "00000000-0000-4000-8000-000000000003",
+        "result": SUCCEEDED,
+        "evidence_ids": [ID],
+        "chart_artifact_ids": [],
+    }
+
+    outcome = ActionOutcome.model_validate(payload)
+    assert ActionOutcome.model_validate_json(outcome.model_dump_json()) == outcome
+
+    with pytest.raises(ValidationError):
+        ActionOutcome.model_validate({**payload, "evidence_ids": []})
+
+
+def test_action_outcome_projects_draft_evidence_and_charts():
+    chart_id = "00000000-0000-4000-8000-000000000099"
+    payload = {
+        "task_id": "00000000-0000-4000-8000-000000000001",
+        "action_id": "00000000-0000-4000-8000-000000000002",
+        "attempt": 1,
+        "result_ref": "00000000-0000-4000-8000-000000000003",
+        "result": {
+            "status": "draft_ready",
+            "draft": {
+                "blocks": [{
+                    "block_id": "claim", "kind": "data_claim",
+                    "spans": [
+                        {"kind": "value", "target": {
+                            "kind": "cell", "evidence_id": ID,
+                            "row_locator": 0, "column_ordinal": 0,
+                        }, "format": "exact"},
+                        {"kind": "chart", "chart_artifact_id": chart_id},
+                    ],
+                    "supports": [],
+                }],
+                "unmet_deliverables": [],
+            },
+            "completeness": "complete",
+        },
+        "evidence_ids": [ID],
+        "chart_artifact_ids": [chart_id],
+    }
+    assert ActionOutcome.model_validate(payload).chart_artifact_ids == [chart_id]
+    with pytest.raises(ValidationError):
+        ActionOutcome.model_validate({**payload, "chart_artifact_ids": []})
+
+
+def test_action_outcome_projects_clarification_value_references_only():
+    payload = {
+        "task_id": "00000000-0000-4000-8000-000000000001",
+        "action_id": "00000000-0000-4000-8000-000000000002",
+        "attempt": 1,
+        "result_ref": "00000000-0000-4000-8000-000000000003",
+        "result": {
+            "status": "question_ready",
+            "question": {
+                "spans": [{"kind": "value", "target": {
+                    "kind": "metadata", "evidence_id": ID, "field": "row_count",
+                }, "format": "exact"}],
+                "supports": [],
+            },
+            "suggestions": [],
+        },
+        "evidence_ids": [ID],
+        "chart_artifact_ids": [],
+    }
+    assert ActionOutcome.model_validate(payload).evidence_ids == [ID]

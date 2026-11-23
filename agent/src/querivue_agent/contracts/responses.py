@@ -2,7 +2,7 @@
 and authorized, published evidence valid for the current scope and source.
 """
 
-from typing import Annotated, Literal
+from typing import Annotated, Literal, TypeAlias
 
 import re
 
@@ -11,7 +11,13 @@ from pydantic import (
     model_validator,
 )
 
-from .content import BlockID, Draft, QuestionContent, Suggestion, SupportTarget, ValueSpan
+from .common import PositiveCount
+from .content import (
+    BlockID, CellTarget, ChartSpan, ChartTarget, CoverageTarget, Draft, MetadataTarget,
+    QuestionContent, Suggestion, SupportTarget, ValueSpan,
+)
+from .control import SupervisorDecision
+from .entry import EntryOutcome
 from .values import CanonicalUUID, RuntimeUUID, UnicodeString
 
 
@@ -261,3 +267,65 @@ ReviewOutcome = Annotated[
     ReviewedAssessment | ReviewFailed,
     Field(discriminator="status"),
 ]
+
+
+ActionResult: TypeAlias = SQLOutcome | PythonOutcome | AnswerOutcome | ClarificationOutcome
+
+
+class ActionOutcome(_StrictModel):
+    task_id: CanonicalUUID
+    action_id: CanonicalUUID
+    attempt: PositiveCount
+    result_ref: RuntimeUUID
+    result: ActionResult
+    evidence_ids: list[CanonicalUUID]
+    chart_artifact_ids: list[CanonicalUUID]
+
+    @field_validator("evidence_ids", "chart_artifact_ids")
+    @classmethod
+    def unique_references(cls, value: list[str], info: ValidationInfo) -> list[str]:
+        if len(value) != len(set(value)):
+            raise ValueError(f"{info.field_name} must be unique")
+        return value
+
+    @model_validator(mode="after")
+    def validate_projection(self) -> "ActionOutcome":
+        evidence_ids: set[str] = set()
+        chart_ids: set[str] = set()
+        result = self.result
+        if isinstance(result, (SQLSucceeded, SQLBlocked, SQLFailed)):
+            evidence_ids.update(result.evidence_ids)
+        elif isinstance(result, (PythonSucceeded, PythonBlocked, PythonFailed)):
+            evidence_ids.update(result.evidence_ids)
+            chart_ids.update(result.chart_artifact_ids)
+        elif isinstance(result, AnswerDraftReady):
+            for block in result.draft.blocks:
+                for target in block.supports:
+                    if isinstance(target, (CellTarget, MetadataTarget, CoverageTarget)):
+                        evidence_ids.add(target.evidence_id)
+                    elif isinstance(target, ChartTarget):
+                        chart_ids.add(target.chart_artifact_id)
+                for span in block.spans:
+                    if isinstance(span, ValueSpan):
+                        evidence_ids.add(span.target.evidence_id)
+                    elif isinstance(span, ChartSpan):
+                        chart_ids.add(span.chart_artifact_id)
+        elif isinstance(result, ClarificationQuestionReady):
+            for content in (result.question, *(item.content for item in result.suggestions)):
+                for target in content.supports:
+                    if isinstance(target, (CellTarget, MetadataTarget)):
+                        evidence_ids.add(target.evidence_id)
+                for span in content.spans:
+                    if isinstance(span, ValueSpan):
+                        evidence_ids.add(span.target.evidence_id)
+        if set(self.evidence_ids) != evidence_ids:
+            raise ValueError("evidence_ids must exactly project the result evidence references")
+        if set(self.chart_artifact_ids) != chart_ids:
+            raise ValueError("chart_artifact_ids must exactly project the result chart references")
+        return self
+
+
+RoleOutcome: TypeAlias = (
+    SQLOutcome | PythonOutcome | AnswerOutcome | ClarificationOutcome
+    | ReviewOutcome | EntryOutcome | SupervisorDecision
+)
