@@ -5,7 +5,7 @@ from typing import Annotated
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from .evidence import ChartDeclaration, OutputDeclaration
-from .values import CanonicalUUID, RuntimeUUID, TypedScalar, UnicodeString
+from .values import CanonicalUUID, TypedScalar, UnicodeString
 
 
 def _nonblank(value: str) -> str:

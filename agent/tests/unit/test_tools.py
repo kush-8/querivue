@@ -19,6 +19,35 @@ EXISTING_ID = "123e4567-e89b-12d3-a456-426614174000"
 DECIMAL = {"kind": "decimal", "value": "12345678901234567890.123456789012345678", "precision": 38, "scale": 18}
 
 
+def evidence_output(name="derived"):
+    return {
+        "name": name,
+        "kind": "evidence",
+        "description": "Derived table",
+        "shape": "table",
+        "columns": [{"name": "value", "type": {"tag": "float64"}, "nullable": False}],
+    }
+
+
+def chart_output(name="trend", evidence_id=EXISTING_ID):
+    return {
+        "name": name,
+        "kind": "chart",
+        "title": "Trend",
+        "description": "Derived trend",
+        "series": [{
+            "label": "Value",
+            "evidence_id": evidence_id,
+            "ordering": [],
+            "scales": {"y": "linear"},
+            "columns": {"x": "date", "y": "value"},
+        }],
+        "units": {"value": "USD"},
+        "analysis_timezone": None,
+        "limitations": [],
+    }
+
+
 @pytest.mark.parametrize(
     "model,payload",
     [
@@ -150,3 +179,87 @@ def test_parameters_reuse_nested_typed_scalar_validation(scalar):
         ExecuteQueryRequest.model_validate(
             {"sql": "SELECT :value", "parameters": {"value": scalar}}
         )
+
+
+@pytest.mark.parametrize("code", ["", " \t\n", 1, True, None, b"x = 1"])
+def test_python_code_is_strict_nonblank_and_never_executed(code):
+    with pytest.raises(ValidationError):
+        ExecutePythonRequest.model_validate(
+            {"code": code, "input_evidence_ids": [EXISTING_ID], "outputs": []}
+        )
+
+
+def test_execute_python_requires_every_field_and_rejects_authority():
+    payload = {"code": "pass", "input_evidence_ids": [EXISTING_ID], "outputs": []}
+    for field in payload:
+        missing = deepcopy(payload)
+        del missing[field]
+        with pytest.raises(ValidationError, match="Field required"):
+            ExecutePythonRequest.model_validate(missing)
+    with pytest.raises(ValidationError, match="extra_forbidden"):
+        ExecutePythonRequest.model_validate({**payload, "authority": "execute"})
+
+
+@pytest.mark.parametrize(
+    "ids",
+    [[], [EXISTING_ID, EXISTING_ID], ["bad"], [EXISTING_ID.upper()], [1], "bad", (EXISTING_ID,)],
+)
+def test_python_inputs_are_nonempty_unique_strict_canonical_uuid_list(ids):
+    with pytest.raises(ValidationError):
+        ExecutePythonRequest.model_validate(
+            {"code": "pass", "input_evidence_ids": ids, "outputs": []}
+        )
+
+
+def test_python_inputs_accept_canonical_v1_uuid():
+    request = ExecutePythonRequest.model_validate(
+        {"code": "pass", "input_evidence_ids": [EXISTING_ID], "outputs": []}
+    )
+    assert request.input_evidence_ids == [EXISTING_ID]
+
+
+def test_python_outputs_may_be_empty_or_mixed_and_round_trip():
+    for outputs in [[], [evidence_output()], [chart_output()], [evidence_output(), chart_output()]]:
+        payload = {
+            "code": "result = '世界'",
+            "input_evidence_ids": [EXISTING_ID],
+            "outputs": outputs,
+        }
+        result = ExecutePythonRequest.model_validate(payload)
+        assert result.model_dump() == payload
+        assert ExecutePythonRequest.model_validate_json(result.model_dump_json()) == result
+        assert ExecutePythonRequest.model_validate_json(json.dumps(payload)) == result
+
+
+@pytest.mark.parametrize("outputs", ["derived", {}, [1], [{"kind": "unknown", "name": "x"}]])
+def test_python_outputs_are_a_strict_discriminated_list(outputs):
+    with pytest.raises(ValidationError):
+        ExecutePythonRequest.model_validate(
+            {"code": "pass", "input_evidence_ids": [EXISTING_ID], "outputs": outputs}
+        )
+
+
+def test_python_output_names_must_be_unique_across_kinds():
+    with pytest.raises(ValidationError, match="output names must be unique"):
+        ExecutePythonRequest.model_validate({
+            "code": "pass",
+            "input_evidence_ids": [EXISTING_ID],
+            "outputs": [evidence_output("same"), chart_output("same")],
+        })
+
+
+def test_every_chart_series_must_be_backed_by_an_input():
+    chart = chart_output(evidence_id=TABLE_ID)
+    chart["series"].append({**chart["series"][0], "evidence_id": EVIDENCE_ID})
+    with pytest.raises(ValidationError, match="declared as an input"):
+        ExecutePythonRequest.model_validate({
+            "code": "pass",
+            "input_evidence_ids": [TABLE_ID],
+            "outputs": [chart],
+        })
+    result = ExecutePythonRequest.model_validate({
+        "code": "pass",
+        "input_evidence_ids": [TABLE_ID, EVIDENCE_ID],
+        "outputs": [chart],
+    })
+    assert len(result.outputs[0].series) == 2
