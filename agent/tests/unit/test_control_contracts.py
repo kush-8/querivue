@@ -79,18 +79,6 @@ def test_new_actions_round_trip_through_discriminated_union(payload, model):
     assert adapter.validate_json(json.dumps(payload)) == result
 
 
-@pytest.mark.parametrize("payload", [DIRECT, CLARIFY])
-def test_new_action_fields_are_required_and_extras_forbidden(payload):
-    model = DirectAnswer if payload is DIRECT else ClarificationAction
-    for field in payload:
-        missing = deepcopy(payload)
-        del missing[field]
-        with pytest.raises(ValidationError):
-            model.model_validate(missing)
-    with pytest.raises(ValidationError, match="extra_forbidden"):
-        model.model_validate({**payload, "authority": "publish"})
-
-
 def test_direct_answer_basis_and_reference_rules():
     for basis in ("knowledge", "evidence"):
         assert DirectAnswer.model_validate({**DIRECT, "basis": basis}).basis == basis
@@ -227,17 +215,3 @@ def test_ready_aggregate_support_reference_occurrence_boundary():
         ClarificationQuestionReady.model_validate({
             **READY, "question": {"spans": [VALUE], "supports": supports}, "suggestions": suggestions,
         })
-
-
-@pytest.mark.parametrize("payload", [READY, {"status": "blocked", "explanation": "x", "required_input": "y"}, {"status": "failed", "error_ref": V1_ID}])
-def test_clarification_outcomes_forbid_extras_and_require_fields(payload):
-    adapter = TypeAdapter(ClarificationOutcome)
-    with pytest.raises(ValidationError, match="extra_forbidden"):
-        adapter.validate_python({**payload, "source_latch_valid": True})
-    for field in payload:
-        if payload["status"] == "question_ready" and field == "suggestions":
-            continue
-        missing = deepcopy(payload)
-        del missing[field]
-        with pytest.raises(ValidationError):
-            adapter.validate_python(missing)

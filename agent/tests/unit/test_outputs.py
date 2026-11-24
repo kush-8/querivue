@@ -15,12 +15,6 @@ V4_ID = "6b085fd1-4c78-4b85-96c9-a201ce5e935c"
 V1_ID = "123e4567-e89b-12d3-a456-426614174000"
 ADAPTER = TypeAdapter(OutputDeclaration)
 
-SIMPLE_TAGS = [
-    "boolean", "int64", "uint64", "float64", "string", "date", "time",
-    "timestamp", "timestamptz",
-]
-
-
 def column(name="value", column_type=None, nullable=False):
     return {
         "name": name,
@@ -63,14 +57,6 @@ def test_output_declarations_round_trip_native_and_json(payload, model):
     assert result.model_dump() == payload
     assert ADAPTER.validate_json(json.dumps(payload)) == result
     assert ADAPTER.validate_json(result.model_dump_json()) == result
-
-
-@pytest.mark.parametrize("tag", SIMPLE_TAGS)
-def test_every_simple_column_type_tag(tag):
-    result = EvidenceDeclaration.model_validate(
-        {**EVIDENCE, "columns": [column(column_type={"tag": tag})]}
-    )
-    assert result.columns[0].type.tag == tag
 
 
 @pytest.mark.parametrize("precision,scale", [(1, 0), (1, 1), (38, 0), (38, 38)])
@@ -117,14 +103,6 @@ def test_invalid_output_identifiers_are_rejected(name):
         EvidenceDeclaration.model_validate({**EVIDENCE, "name": name})
 
 
-@pytest.mark.parametrize("field", ["name", "kind", "description", "shape", "columns"])
-def test_evidence_fields_are_required(field):
-    payload = deepcopy(EVIDENCE)
-    del payload[field]
-    with pytest.raises(ValidationError, match="Field required"):
-        EvidenceDeclaration.model_validate(payload)
-
-
 @pytest.mark.parametrize(
     "change",
     [
@@ -157,19 +135,6 @@ def test_declarations_forbid_unknown_fields_at_every_level():
     chart["series"][0]["ordering"][0]["extra"] = True
     with pytest.raises(ValidationError, match="extra_forbidden"):
         ChartDeclaration.model_validate(chart)
-
-
-@pytest.mark.parametrize(
-    "field", [
-        "name", "kind", "title", "description", "series", "units",
-        "analysis_timezone", "limitations",
-    ]
-)
-def test_chart_fields_are_required(field):
-    payload = deepcopy(CHART)
-    del payload[field]
-    with pytest.raises(ValidationError, match="Field required"):
-        ChartDeclaration.model_validate(payload)
 
 
 @pytest.mark.parametrize(

@@ -35,6 +35,8 @@ ErrorCode = Literal[
     "artifact_unavailable", "artifact_integrity_failure", "query_timeout",
     "result_limit_exceeded", "unsupported_result_type", "infrastructure_unavailable",
     "budget_exhausted", "no_progress", "invalid_specialist_output", "internal_error",
+    "python_execution_error", "output_validation_error", "chart_render_error",
+    "execution_timeout", "resource_limit_exceeded", "environment_unavailable",
 ]
 ErrorStage = Literal["validation", "execution", "persistence", "recovery"]
 ErrorDisposition = Literal[
@@ -205,13 +207,22 @@ ContentHash = Annotated[str, Field(strict=True), AfterValidator(_hash)]
 ReviewPass = Annotated[int, Field(strict=True, ge=1, le=2)]
 
 
+def _review_text(value: str) -> str:
+    if len(value.encode("utf-8")) > 1024:
+        raise ValueError("expected at most 1024 UTF-8 bytes")
+    return value
+
+
+ReviewText = Annotated[NonblankString, AfterValidator(_review_text)]
+
+
 class ReviewFinding(_StrictModel):
     finding_id: BlockID
     category: Literal["evidence", "draft"]
-    block_ids: list[BlockID]
-    explanation: NonblankString
-    support_refs: list[SupportTarget]
-    required_change: NonblankString
+    block_ids: list[BlockID] = Field(max_length=16)
+    explanation: ReviewText
+    support_refs: list[SupportTarget] = Field(max_length=16)
+    required_change: ReviewText
 
     @field_validator("block_ids")
     @classmethod
@@ -234,7 +245,7 @@ class ReviewBinding(_StrictModel):
 class ReviewedAssessment(ReviewBinding):
     status: Literal["reviewed"]
     verdict: Literal["approved", "rejected"]
-    findings: list[ReviewFinding]
+    findings: list[ReviewFinding] = Field(max_length=8)
 
     @model_validator(mode="after")
     def validate_findings(self) -> "ReviewedAssessment":
@@ -244,12 +255,14 @@ class ReviewedAssessment(ReviewBinding):
             raise ValueError("approved requires no findings and rejected requires findings")
         if len({finding.finding_id for finding in self.findings}) != len(self.findings):
             raise ValueError("finding_id values must be unique")
+        if sum(len(finding.support_refs) for finding in self.findings) > 64:
+            raise ValueError("review may contain at most 64 support-reference occurrences")
         return self
 
 
 class CannotCompleteAssessment(_StrictModel):
     status: Literal["cannot_complete"]
-    explanation: NonblankString
+    explanation: ReviewText
 
 
 ReviewAssessment = Annotated[

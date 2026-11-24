@@ -1,5 +1,3 @@
-from copy import deepcopy
-
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
@@ -23,17 +21,6 @@ FENCE = {
 def test_scope_and_owner_fence_round_trip():
     assert Scope.model_validate(SCOPE).model_dump() == SCOPE
     assert OwnerFence.model_validate(FENCE).model_dump() == FENCE
-
-
-@pytest.mark.parametrize("model,payload", [(Scope, SCOPE), (OwnerFence, FENCE)])
-def test_records_require_every_field_and_forbid_extras(model, payload):
-    with pytest.raises(ValidationError, match="extra_forbidden"):
-        model.model_validate({**payload, "credential": "secret"})
-    for field in payload:
-        missing = deepcopy(payload)
-        del missing[field]
-        with pytest.raises(ValidationError):
-            model.model_validate(missing)
 
 
 def test_scope_requires_unique_datasets_and_chat_for_run():

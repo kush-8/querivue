@@ -1,5 +1,4 @@
 import json
-from copy import deepcopy
 from uuid import UUID
 
 import pytest
@@ -69,19 +68,6 @@ def test_value_target_rejects_other_support_target_kinds(target):
         TypeAdapter(ValueTarget).validate_python(target)
 
 
-@pytest.mark.parametrize("payload", SUPPORTS + SPANS)
-def test_target_and_span_unknown_missing_or_mistyped_fields(payload):
-    adapter = TypeAdapter(ContentSpan if payload in SPANS else SupportTarget)
-    with pytest.raises(ValidationError):
-        adapter.validate_python({**payload, "authority": "execute"})
-    missing = deepcopy(payload)
-    del missing["kind"]
-    with pytest.raises(ValidationError):
-        adapter.validate_python(missing)
-    with pytest.raises(ValidationError):
-        adapter.validate_python({**payload, "kind": 1})
-
-
 @pytest.mark.parametrize("field", ["row_locator", "column_ordinal"])
 @pytest.mark.parametrize("invalid", [-1, 1.0, "1", True, None])
 def test_cell_indices_are_strict_nonnegative_integers(field, invalid):
@@ -109,14 +95,6 @@ def test_text_span_is_nonempty_unicode_and_limited_by_utf8_bytes():
     for text in ["", "é" * 1024 + "a", "\ud800", 1]:
         with pytest.raises(ValidationError):
             TextSpan.model_validate({"kind": "text", "text": text})
-
-
-@pytest.mark.parametrize("format", [
-    "exact", "fixed_0", "fixed_1", "fixed_2", "percent_0", "percent_1", "percent_2",
-    "currency_2", "iso",
-])
-def test_value_formats(format):
-    assert ValueSpan.model_validate({**SPANS[1], "format": format}).format == format
 
 
 def test_block_bounds_ids_and_supports_rules():
@@ -162,13 +140,3 @@ def test_unmet_deliverables_bounds_and_utf8_limits():
         for invalid in ["", " ", "é" * 513, 1]:
             with pytest.raises(ValidationError):
                 Draft.model_validate({"blocks": [BLOCK], "unmet_deliverables": [{**item, field: invalid}]})
-
-
-def test_draft_forbids_unknown_fields_and_requires_all_fields():
-    with pytest.raises(ValidationError, match="extra_forbidden"):
-        Draft.model_validate({**DRAFT, "execute": True})
-    for field in DRAFT:
-        value = deepcopy(DRAFT)
-        del value[field]
-        with pytest.raises(ValidationError, match="Field required"):
-            Draft.model_validate(value)

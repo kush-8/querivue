@@ -4,7 +4,8 @@ Read before every coding task and after a context handoff. Keep this file limite
 
 ## Scope and supervision
 
-- Implement the approved specification and architecture. Carry forward approvals; bring new design or implementation decisions to the user before dependent code. TDD is optional; derive acceptance criteria and verification from the specification.
+- Implement the approved specification and architecture using spec-driven development. Do not use a test-first/TDD workflow; implement the specified behavior, then verify it with appropriate focused checks. Carry forward approvals and bring consequential new decisions to the user before dependent code.
+- Work directly on `main`; do not create separate branches or worktrees. Preserve existing user changes when moving work to `main`.
 - This chat is the coding supervisor (21 November 2026 correction). It reviews, integrates and verifies; it delegates all code writing, including single tasks. Do not launch a separate supervisor. These settings apply to development agents, not Querivue runtime models.
 - Always use `gpt-5.6-sol`, `reasoning_effort="medium"`, `fork_turns="none"` for coding workers. If unavailable at dispatch, report the limitation; do not silently substitute another model or reasoning level.
 - Give each worker bounded, nonoverlapping file ownership, a deliverable, relevant plan/specification excerpts, interfaces, constraints and acceptance criteria. Workers inspect assigned source/tests, not project docs. The supervisor reads docs through QMD and supplies missing targeted context; avoid full-chat/document dumps.
@@ -19,6 +20,7 @@ Read before every coding task and after a context handoff. Keep this file limite
 - Select relevant skills within each bundle. Preserve approved scope, contract reviews and delegation; avoid unrelated workflows, packages or approval requests. Report unavailable capabilities and use the best available fallback without claiming they ran.
 - Use code-review-graph to select relevant code files, relationships and impact, then read only affected source/test sections. Use QMD keyword search in `querivue-docs`, then retrieve only relevant Markdown sections (normally 40–80 lines). Reuse unchanged context. Use targeted `rg` for literals/unindexed text or unavailable indexes; source remains authoritative. Follow [rules.md](rules.md#discovery-and-local-maintenance) for maintenance and fallback details.
 - Build the smallest complete implementation satisfying the approved specification. Reuse code/dependencies and cover affected callers, configuration, interfaces and failure paths.
+- Keep code simple and focused: avoid speculative abstractions, unnecessary wrappers and unrelated cleanup.
 - State consequential assumptions and define observable success before coding. Make surgical edits that trace to the request; match existing conventions, avoid speculative abstractions and unrelated cleanup, and remove only newly orphaned code.
 - Keep instructions in one authoritative place with short pointers stating when to read them. Load details on demand; prune duplication and stale guidance instead of copying docs, readily discoverable configuration or full tool output into context.
 
@@ -33,5 +35,6 @@ Read before every coding task and after a context handoff. Keep this file limite
 
 - The supervisor reviews worker code and checks integration, verification and conformance to the approved plan/architecture.
 - Run checks appropriate to the change, with meaningful tests/evaluations derived from the specification. Distinguish documented support from measured behavior.
+- Keep verification selective: use a small set of high-value checks for specified invariants, important boundaries and failure paths. Do not exhaustively test every field, enum value or behavior already supplied by a library. Remove redundant field-by-field tests; do not use test count as a completion target or remove a check merely to hide a real defect.
 - Update handoff/docs and maintain indexes once per completed batch under [local maintenance rules](rules.md#discovery-and-local-maintenance), not after every small slice. Floorplan remains phase-end only unless requested earlier.
 - Report what changed, what was verified, and unresolved gaps or risks.

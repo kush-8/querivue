@@ -1,6 +1,4 @@
 import json
-from copy import deepcopy
-
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
@@ -58,18 +56,6 @@ def test_answer_variants_round_trip(payload, model):
     assert model.model_validate(payload) == result
 
 
-@pytest.mark.parametrize("payload", [ANSWER_DRAFT, ANSWER_BLOCKED, ANSWER_FAILED])
-def test_answer_union_rejects_missing_unknown_mistyped_and_cross_branch_fields(payload):
-    adapter = TypeAdapter(AnswerOutcome)
-    for change in [{"status": "success"}, {"status": 1}, {"execute": True}]:
-        with pytest.raises(ValidationError):
-            adapter.validate_python({**payload, **change})
-    missing = deepcopy(payload)
-    del missing["status"]
-    with pytest.raises(ValidationError):
-        adapter.validate_python(missing)
-
-
 def test_answer_completeness_requirements_and_failure_reference_rules():
     assert AnswerDraftReady.model_validate({**ANSWER_DRAFT, "completeness": "partial"})
     with pytest.raises(ValidationError):
@@ -111,28 +97,12 @@ def test_cannot_complete_is_assessment_but_not_review_outcome():
         TypeAdapter(ReviewOutcome).validate_python(CANNOT)
 
 
-@pytest.mark.parametrize("payload", [APPROVED, REJECTED, REVIEW_FAILED])
-def test_review_bindings_require_canonical_ids_strict_hashes_and_pass_bounds(payload):
-    model = ReviewFailed if payload["status"] == "failed" else ReviewedAssessment
-    for field in ["review_id", "draft_id"]:
-        with pytest.raises(ValidationError):
-            model.model_validate({**payload, field: payload[field].upper()})
-    for field in ["draft_content_hash", "draft_input_packet_hash", "review_input_packet_hash"]:
-        for invalid in ["A" * 64, "a" * 63, "g" * 64, 1]:
-            with pytest.raises(ValidationError):
-                model.model_validate({**payload, field: invalid})
-    for invalid in [0, 3, 1.0, "1", True]:
-        with pytest.raises(ValidationError):
-            model.model_validate({**payload, "review_pass": invalid})
-    assert model.model_validate({**payload, "review_pass": 2}).review_pass == 2
-
-
-@pytest.mark.parametrize("payload", [APPROVED, REJECTED, CANNOT, REVIEW_FAILED])
-def test_review_variants_forbid_executable_authority_and_wrong_branch_fields(payload):
-    adapter = TypeAdapter(ReviewAssessment if payload["status"] == "cannot_complete" else ReviewOutcome)
-    for field, value in [("execute", True), ("route", "approve"), ("confidence", 1.0), ("severity", "high"), ("replacement_answer", DRAFT)]:
-        with pytest.raises(ValidationError, match="extra_forbidden"):
-            adapter.validate_python({**payload, field: value})
+def test_review_binding_pass_bound_and_runtime_authority_boundary():
+    assert ReviewedAssessment.model_validate({**APPROVED, "review_pass": 2}).review_pass == 2
+    with pytest.raises(ValidationError):
+        ReviewedAssessment.model_validate({**APPROVED, "review_pass": 3})
+    with pytest.raises(ValidationError, match="extra_forbidden"):
+        TypeAdapter(ReviewOutcome).validate_python({**APPROVED, "execute": True})
 
 
 def test_finding_rules_and_support_target_validation():
@@ -205,11 +175,3 @@ def test_cannot_complete_explanation_has_1024_utf8_byte_bound():
     assert len(accepted.explanation.encode("utf-8")) == 1024
     with pytest.raises(ValidationError):
         CannotCompleteAssessment.model_validate({**CANNOT, "explanation": "界" * 342})
-
-
-@pytest.mark.parametrize("payload", [ANSWER_BLOCKED, CANNOT])
-def test_explanations_and_descriptions_are_strict_nonblank_unicode(payload):
-    model = AnswerBlocked if payload["status"] == "blocked" else CannotCompleteAssessment
-    for invalid in ["", " \n", 1, True, None, "\ud800"]:
-        with pytest.raises(ValidationError):
-            model.model_validate({**payload, "explanation": invalid})

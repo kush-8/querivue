@@ -1,7 +1,5 @@
 import hashlib
 import json
-from copy import deepcopy
-
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
@@ -284,7 +282,6 @@ def review_request() -> dict:
         "draft_id": uid(61),
         "draft_content_hash": H_A,
         "draft_input_packet_hash": H_B,
-        "review_input_packet_hash": "0" * 64,
         "rendering_policy_version": "render-v1",
         "review_pass": 1,
     }
@@ -308,6 +305,7 @@ def draft(*, unmet: bool = False) -> dict:
 def reviewed_candidate(*, completeness: str = "complete") -> dict:
     review = {
         **review_request(),
+        "review_input_packet_hash": "0" * 64,
         "status": "reviewed",
         "verdict": "approved",
         "findings": [],
@@ -598,13 +596,3 @@ def test_diagnostics_are_utf8_bounded_and_truncation_flags_are_strict():
         OperationDiagnostics.model_validate({**base, "stdout": base["stdout"] + "界"})
     with pytest.raises(ValidationError):
         OperationDiagnostics.model_validate({**base, "stdout_truncated": 1})
-
-
-def test_all_records_forbid_extra_fields_and_keep_required_fields_required():
-    payload = model_usage()
-    with pytest.raises(ValidationError, match="extra_forbidden"):
-        ModelUsage.model_validate({**payload, "estimated": True})
-    missing = deepcopy(payload)
-    del missing["input_tokens"]
-    with pytest.raises(ValidationError, match="Field required"):
-        ModelUsage.model_validate(missing)

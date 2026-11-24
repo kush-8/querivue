@@ -1,6 +1,4 @@
 import json
-from copy import deepcopy
-
 import pytest
 from pydantic import ValidationError
 
@@ -135,23 +133,6 @@ def test_manifest_families_round_trip_native_and_json(model, payload):
     assert model.model_validate_json(json.dumps(payload)) == result
 
 
-def test_manifest_records_require_fields_and_forbid_extras():
-    payload = environment_manifest()
-    missing = deepcopy(payload)
-    del missing["observed_controls"]
-    with pytest.raises(ValidationError, match="Field required"):
-        EnvironmentManifest.model_validate(missing)
-    with pytest.raises(ValidationError, match="extra_forbidden"):
-        EnvironmentManifest.model_validate({**payload, "certified": True})
-
-
-@pytest.mark.parametrize("field", ["network_disabled", "process_tree_limits_enforced"])
-@pytest.mark.parametrize("invalid", [0, 1, 0.0, 1.0, "true"])
-def test_resource_control_booleans_are_strict(field, invalid):
-    with pytest.raises(ValidationError):
-        ResourceProfile.model_validate(resource_profile(**{field: invalid}))
-
-
 @pytest.mark.parametrize("field", ["scratch_bytes", "output_bytes"])
 def test_resource_suballocations_cannot_exceed_filesystem(field):
     with pytest.raises(ValidationError):
@@ -201,15 +182,6 @@ def test_provider_rates_have_unique_meters_and_revision_may_stay_unknown():
         ProviderIdentity.model_validate(provider_identity(rates=rates))
 
 
-@pytest.mark.parametrize(
-    "field,invalid",
-    [("free_tier_enforced", 1), ("accounting_verified", "true"), ("privacy_verified", 0)],
-)
-def test_provider_verification_flags_are_strict(field, invalid):
-    with pytest.raises(ValidationError):
-        ProviderIdentity.model_validate(provider_identity(**{field: invalid}))
-
-
 def test_inference_sampling_overrides_require_verified_provider_support():
     base = {"reasoning": "low", "temperature": None, "seed": None, "max_generated_tokens": 512, "sampling_overrides_verified": False, "reasoning_in_output_budget": True}
     for field, value in (("temperature", 0.5), ("seed", 7)):
@@ -217,12 +189,6 @@ def test_inference_sampling_overrides_require_verified_provider_support():
             InferenceSettings.model_validate({**base, field: value})
     accepted = InferenceSettings.model_validate({**base, "temperature": 0.5, "seed": 7, "sampling_overrides_verified": True})
     assert accepted.temperature == 0.5 and accepted.seed == 7
-
-
-@pytest.mark.parametrize("temperature", [0, 1, True, "0.5", float("inf"), float("nan")])
-def test_temperature_is_a_strict_finite_float(temperature):
-    with pytest.raises(ValidationError):
-        InferenceSettings.model_validate({"reasoning": None, "temperature": temperature, "seed": None, "max_generated_tokens": 1, "sampling_overrides_verified": True, "reasoning_in_output_budget": True})
 
 
 @pytest.mark.parametrize("media_type", ["text/plain", "application/octet-stream"])

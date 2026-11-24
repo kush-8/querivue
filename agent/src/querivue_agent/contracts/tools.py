@@ -27,8 +27,15 @@ class InspectTableRequest(_StrictModel):
 
 class PreviewRowsRequest(_StrictModel):
     table_id: CanonicalUUID
-    columns: list[NonblankString] | None
+    columns: list[NonblankString] | None = Field(min_length=1)
     limit: Annotated[int, Field(strict=True, gt=0)]
+
+    @field_validator("columns")
+    @classmethod
+    def unique_columns(cls, value: list[str] | None) -> list[str] | None:
+        if value is not None and len(value) != len(set(value)):
+            raise ValueError("column names must be unique")
+        return value
 
 
 class InspectEvidenceRequest(_StrictModel):
@@ -38,6 +45,14 @@ class InspectEvidenceRequest(_StrictModel):
 class ExecuteQueryRequest(_StrictModel):
     sql: NonblankString
     parameters: dict[NonblankString, TypedScalar]
+
+    @field_validator("parameters")
+    @classmethod
+    def unique_parameter_names(cls, value: dict[str, TypedScalar]) -> dict[str, TypedScalar]:
+        folded_names = [name.casefold() for name in value]
+        if len(folded_names) != len(set(folded_names)):
+            raise ValueError("parameter names must be unique case-insensitively")
+        return value
 
 
 class ExecutePythonRequest(_StrictModel):

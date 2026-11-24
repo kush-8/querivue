@@ -72,18 +72,6 @@ def test_public_payload_round_trips_in_native_and_json_modes() -> None:
     assert RunConfig.model_validate_json(config.model_dump_json()).public_payload() == native
 
 
-@pytest.mark.parametrize(
-    ("field", "value"),
-    [("schema_version", True), ("schema_version", 1.0), ("live_enabled", 1),
-     ("hosted_tracing_enabled", "false")],
-)
-def test_top_level_literals_and_booleans_are_strict(field: str, value: object) -> None:
-    payload = run_payload()
-    payload[field] = value
-    with pytest.raises(ValidationError):
-        RunConfig.model_validate(payload)
-
-
 def test_required_sections_unknown_keys_and_full_role_map_are_enforced() -> None:
     payload = run_payload()
     del payload["run_limits"]

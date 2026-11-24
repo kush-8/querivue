@@ -90,14 +90,6 @@ def test_artifact_rejects_invalid_boundaries_and_capability_fields(change):
         ArtifactRef.model_validate({**ARTIFACT, **change})
 
 
-@pytest.mark.parametrize("field", ARTIFACT)
-def test_artifact_fields_are_required(field):
-    payload = deepcopy(ARTIFACT)
-    del payload[field]
-    with pytest.raises(ValidationError, match="Field required"):
-        ArtifactRef.model_validate(payload)
-
-
 @pytest.mark.parametrize(
     "change",
     [
