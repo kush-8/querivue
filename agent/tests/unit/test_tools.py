@@ -149,6 +149,21 @@ def test_preview_columns_are_a_strict_list_of_nonblank_names_or_null(invalid):
         )
 
 
+@pytest.mark.parametrize("columns", [[], ["name", "name"]])
+def test_explicit_preview_columns_are_nonempty_and_exactly_unique(columns):
+    with pytest.raises(ValidationError):
+        PreviewRowsRequest.model_validate(
+            {"table_id": TABLE_ID, "columns": columns, "limit": 1}
+        )
+
+
+def test_preview_column_uniqueness_is_case_sensitive():
+    request = PreviewRowsRequest.model_validate(
+        {"table_id": TABLE_ID, "columns": ["Name", "name"], "limit": 1}
+    )
+    assert request.columns == ["Name", "name"]
+
+
 @pytest.mark.parametrize("invalid", ["", " \t\n\u2003", 1, True, None, b"SELECT 1"])
 def test_sql_is_a_strict_nonblank_string(invalid):
     with pytest.raises(ValidationError):
@@ -162,6 +177,23 @@ def test_sql_is_a_strict_nonblank_string(invalid):
 def test_parameters_are_a_strict_map_with_nonblank_string_names(parameters):
     with pytest.raises(ValidationError):
         ExecuteQueryRequest.model_validate({"sql": "SELECT 1", "parameters": parameters})
+
+
+def test_parameter_names_must_be_unique_under_unicode_casefold():
+    with pytest.raises(ValidationError, match="case-insensitively"):
+        ExecuteQueryRequest.model_validate({
+            "sql": "SELECT :Name",
+            "parameters": {
+                "Name": {"kind": "int64", "value": 1},
+                "name": {"kind": "int64", "value": 2},
+            },
+        })
+
+
+def test_parameter_validation_preserves_original_spelling_and_values():
+    parameters = {"Straße": {"kind": "string", "value": "kept"}}
+    request = ExecuteQueryRequest.model_validate({"sql": "SELECT :value", "parameters": parameters})
+    assert request.model_dump()["parameters"] == parameters
 
 
 @pytest.mark.parametrize(

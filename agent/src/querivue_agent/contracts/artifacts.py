@@ -44,7 +44,7 @@ class ArtifactRef(_StrictModel):
     media_type: NonblankString
     size_bytes: SafeInteger
     sha256: Sha256
-    environment_manifest_id: CanonicalUUID
+    environment_manifest_id: CanonicalUUID | None
 
 
 class StagedArtifact(_StrictModel):

@@ -306,6 +306,7 @@ def test_prepared_snapshot_payload_integrity_and_ready_revision():
     for change in [
         {"artifact": {**artifact(), "media_type": "application/vnd.apache.parquet"}},
         {"artifact": {**artifact(), "environment_manifest_id": V4}},
+        {"artifact": {**artifact(), "environment_manifest_id": None}},
         {"dependencies": [{"dataset_id": V1, "snapshot_id": V1B}]},
         {"table_ids": [V1B, V1B]},
     ]:

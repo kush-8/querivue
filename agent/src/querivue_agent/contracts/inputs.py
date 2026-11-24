@@ -41,6 +41,15 @@ def _dependency_pairs(value: list[SourceDependency]) -> set[tuple[str, str]]:
     return {(item.dataset_id, item.snapshot_id) for item in value}
 
 
+def _validate_evidence_views(
+    value: list[TabularEvidence], *, max_rows: int, subject: str,
+) -> None:
+    if any(item.preview.returned_row_count > max_rows for item in value):
+        raise ValueError(f"{subject} previews may contain at most {max_rows} rows")
+    if any(len(item.preview.columns) > 32 for item in value):
+        raise ValueError(f"{subject} previews may contain at most 32 visible columns")
+
+
 class UserMessage(StrictRecord):
     message_id: CanonicalUUID
     chat_id: CanonicalUUID
@@ -397,8 +406,8 @@ class SQLInput(_AnalyticalInput):
     attempt: PositiveCount
     request: SQLAction
     tables: list[TableCatalog]
-    evidence: list[TabularEvidence]
-    table_profiles: list[TabularEvidence]
+    evidence: list[TabularEvidence] = Field(max_length=8)
+    table_profiles: list[TabularEvidence] = Field(max_length=8)
 
     def _material_ids(self) -> dict[str, set[str]]:
         result = super()._material_ids()
@@ -413,6 +422,11 @@ class SQLInput(_AnalyticalInput):
 
     @model_validator(mode="after")
     def validate_sql(self) -> "SQLInput":
+        if len(self.evidence) + len(self.table_profiles) > 8:
+            raise ValueError("SQL evidence and table profile views may contain at most 8 combined")
+        _validate_evidence_views(
+            self.evidence + self.table_profiles, max_rows=32, subject="SQL",
+        )
         _unique([item.table_id for item in self.tables], "table IDs")
         _unique([item.evidence_id for item in self.evidence + self.table_profiles], "evidence IDs")
         if set(item.table_id for item in self.tables) != set(self.request.table_ids):
@@ -440,7 +454,7 @@ class PythonInput(_AnalyticalInput):
     task_id: CanonicalUUID
     attempt: PositiveCount
     request: PythonAction
-    evidence: list[TabularEvidence]
+    evidence: list[TabularEvidence] = Field(max_length=8)
 
     def _material_ids(self) -> dict[str, set[str]]:
         result = super()._material_ids()
@@ -454,6 +468,7 @@ class PythonInput(_AnalyticalInput):
 
     @model_validator(mode="after")
     def validate_python(self) -> "PythonInput":
+        _validate_evidence_views(self.evidence, max_rows=32, subject="Python")
         _unique([item.evidence_id for item in self.evidence], "evidence IDs")
         if set(item.evidence_id for item in self.evidence) != set(self.request.input_evidence_ids):
             raise ValueError("evidence must exactly match delegated evidence IDs")
@@ -467,8 +482,8 @@ class AnswerInput(_AnalyticalInput):
     task_id: CanonicalUUID
     attempt: PositiveCount
     request: AnswerAction
-    evidence: list[TabularEvidence]
-    charts: list[ChartArtifact]
+    evidence: list[TabularEvidence] = Field(max_length=8)
+    charts: list[ChartArtifact] = Field(max_length=4)
     obligations: list[ObligationRecord]
     unmet_facts: list[UnmetFact]
     partial_authorization: PartialAuthorization | None
@@ -496,6 +511,7 @@ class AnswerInput(_AnalyticalInput):
 
     @model_validator(mode="after")
     def validate_answer(self) -> "AnswerInput":
+        _validate_evidence_views(self.evidence, max_rows=128, subject="Answer")
         for values, subject in (
             ([item.evidence_id for item in self.evidence], "evidence IDs"),
             ([item.chart_artifact_id for item in self.charts], "chart IDs"),
@@ -606,8 +622,8 @@ class SupervisorInput(_AnalyticalInput):
     pending_tasks: list[Task]
     current_task: Task | None
     outcomes: list[ActionOutcome]
-    evidence: list[TabularEvidence]
-    charts: list[ChartArtifact]
+    evidence: list[TabularEvidence] = Field(max_length=8)
+    charts: list[ChartArtifact] = Field(max_length=4)
     catalog: list[TableCatalog]
     obligations: list[ObligationRecord]
     gaps: list[UnmetFact]
@@ -637,6 +653,7 @@ class SupervisorInput(_AnalyticalInput):
 
     @model_validator(mode="after")
     def validate_supervisor(self) -> "SupervisorInput":
+        _validate_evidence_views(self.evidence, max_rows=32, subject="Supervisor")
         tasks = self.pending_tasks + ([self.current_task] if self.current_task is not None else [])
         for values, subject in (
             ([item.task_id for item in tasks], "task IDs"),

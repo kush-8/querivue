@@ -279,6 +279,7 @@ def test_tabular_evidence_binds_schema_counts_mime_environment_and_profile_depen
     invalid = [
         {"artifact": artifact("image/png")},
         {"artifact": {**artifact(), "environment_manifest_id": V4B}},
+        {"artifact": {**artifact(), "environment_manifest_id": None}},
         {"preview": {**preview(), "columns": [column(name="other")] }},
         {"row_count": 2},
         {"dependencies": []},
@@ -359,6 +360,7 @@ def test_chart_artifact_binds_png_identity_inputs_and_dependencies():
     invalid = [
         {"artifact": {**payload["artifact"], "artifact_id": V1B}},
         {"artifact": {**payload["artifact"], "media_type": "application/vnd.apache.parquet"}},
+        {"artifact": {**payload["artifact"], "environment_manifest_id": None}},
         {"pixel_width": 0},
         {"backing_evidence_ids": [V1]},
         {"producer": {**python_producer(), "input_evidence_ids": [V1]}},

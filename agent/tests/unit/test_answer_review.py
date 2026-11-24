@@ -159,6 +159,54 @@ def test_verdict_findings_consistency_and_unique_finding_ids():
         ReviewedAssessment.model_validate({**REJECTED, "findings": [FINDING, FINDING]})
 
 
+def test_reviewer_finding_shape_bounds_are_utf8_aware():
+    assert len(ReviewFinding.model_validate({
+        **FINDING,
+        "block_ids": [f"b-{index}" for index in range(16)],
+        "support_refs": [{"kind": "coverage", "evidence_id": ID} for _ in range(16)],
+        "explanation": "界" * 341 + "a",
+        "required_change": "界" * 341 + "a",
+    }).explanation.encode("utf-8")) == 1024
+    for change in (
+        {"block_ids": [f"b-{index}" for index in range(17)]},
+        {"support_refs": [{"kind": "coverage", "evidence_id": ID} for _ in range(17)]},
+        {"explanation": "界" * 342},
+        {"required_change": "界" * 342},
+    ):
+        with pytest.raises(ValidationError):
+            ReviewFinding.model_validate({**FINDING, **change})
+
+
+def test_reviewer_finding_count_and_support_occurrence_bounds_reject_whole_shape():
+    findings = [{**FINDING, "finding_id": f"finding-{index}"} for index in range(8)]
+    assert len(ReviewedAssessment.model_validate({**REJECTED, "findings": findings}).findings) == 8
+    with pytest.raises(ValidationError):
+        ReviewedAssessment.model_validate({
+            **REJECTED,
+            "findings": findings + [{**FINDING, "finding_id": "finding-9"}],
+        })
+    too_many_supports = [
+        {
+            **FINDING,
+            "finding_id": f"finding-{index}",
+            "support_refs": [{"kind": "coverage", "evidence_id": ID} for _ in range(9)],
+        }
+        for index in range(8)
+    ]
+    with pytest.raises(ValidationError, match="64"):
+        ReviewedAssessment.model_validate({**REJECTED, "findings": too_many_supports})
+
+
+def test_cannot_complete_explanation_has_1024_utf8_byte_bound():
+    accepted = CannotCompleteAssessment.model_validate({
+        **CANNOT,
+        "explanation": "界" * 341 + "a",
+    })
+    assert len(accepted.explanation.encode("utf-8")) == 1024
+    with pytest.raises(ValidationError):
+        CannotCompleteAssessment.model_validate({**CANNOT, "explanation": "界" * 342})
+
+
 @pytest.mark.parametrize("payload", [ANSWER_BLOCKED, CANNOT])
 def test_explanations_and_descriptions_are_strict_nonblank_unicode(payload):
     model = AnswerBlocked if payload["status"] == "blocked" else CannotCompleteAssessment
