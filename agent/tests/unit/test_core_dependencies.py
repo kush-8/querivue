@@ -43,7 +43,7 @@ def test_required_versions_and_python_support() -> None:
         "langgraph": "1.2.24",
         "langgraph-checkpoint-redis": "0.6.0",
         "pydantic": "2.14.4",
-        "pytest": "9.2.0",
+        "pytest": "8.0.0",
         "redis": "8.1.0",
     }
 
