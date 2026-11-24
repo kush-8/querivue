@@ -55,6 +55,23 @@ def test_artifact_models_round_trip_native_and_json():
     assert receipt.checks == ["hash", " size "]
 
 
+def test_raw_and_staged_artifacts_require_explicit_but_nullable_environment():
+    raw = {**ARTIFACT, "environment_manifest_id": None}
+    assert ArtifactRef.model_validate(raw).environment_manifest_id is None
+    staged = StagedArtifact.model_validate({
+        "staging_id": V4,
+        "artifact": raw,
+        "owner_generation": 1,
+        "validation_receipt_id": None,
+    })
+    assert staged.artifact.environment_manifest_id is None
+
+    missing = deepcopy(raw)
+    del missing["environment_manifest_id"]
+    with pytest.raises(ValidationError, match="Field required"):
+        ArtifactRef.model_validate(missing)
+
+
 @pytest.mark.parametrize(
     "change",
     [

@@ -102,6 +102,28 @@ def evidence():
         "ordinal": 0, "name": "amount", "original_label": "Amount",
         "original_ordinal": 0, "type": {"tag": "int64"}, "nullable": False,
     }
+    return {
+        "evidence_id": EVIDENCE, "content_hash": HASH,
+        "artifact": {
+            "artifact_id": ARTIFACT, "storage_ref": STORAGE,
+            "media_type": "application/vnd.apache.parquet", "size_bytes": 1,
+            "sha256": HASH, "environment_manifest_id": ENVIRONMENT,
+        },
+        "columns": [column], "row_count": 1,
+        "preview": {
+            "columns": [column], "rows": [["1"]], "row_locators": [0],
+            "full_row_count": 1, "returned_row_count": 1, "effective_limit": 1,
+            "ordering": "unspecified", "truncated": False, "shortened_cells": [],
+        },
+        "producer": {
+            "kind": "ingestion_profile", "dataset_id": DATASET,
+            "snapshot_id": SOURCE_SNAPSHOT,
+            "table_id": "00000000-0000-4000-8000-000000000018",
+            "settings_hash": HASH, "profile_schema_version": "1",
+            "environment_manifest_id": ENVIRONMENT,
+        },
+        "dependencies": [{"dataset_id": DATASET, "snapshot_id": SOURCE_SNAPSHOT}],
+    }
 
 
 def shaped_evidence(index=0, *, rows=1, preview_columns=1):
@@ -161,28 +183,6 @@ def chart(index=0):
         },
         "pixel_width": 100, "pixel_height": 100, "encoder_version": "1",
         "normalization_version": "1", "backing_evidence_ids": [EVIDENCE],
-        "dependencies": [{"dataset_id": DATASET, "snapshot_id": SOURCE_SNAPSHOT}],
-    }
-    return {
-        "evidence_id": EVIDENCE, "content_hash": HASH,
-        "artifact": {
-            "artifact_id": ARTIFACT, "storage_ref": STORAGE,
-            "media_type": "application/vnd.apache.parquet", "size_bytes": 1,
-            "sha256": HASH, "environment_manifest_id": ENVIRONMENT,
-        },
-        "columns": [column], "row_count": 1,
-        "preview": {
-            "columns": [column], "rows": [["1"]], "row_locators": [0],
-            "full_row_count": 1, "returned_row_count": 1, "effective_limit": 1,
-            "ordering": "unspecified", "truncated": False, "shortened_cells": [],
-        },
-        "producer": {
-            "kind": "ingestion_profile", "dataset_id": DATASET,
-            "snapshot_id": SOURCE_SNAPSHOT,
-            "table_id": "00000000-0000-4000-8000-000000000018",
-            "settings_hash": HASH, "profile_schema_version": "1",
-            "environment_manifest_id": ENVIRONMENT,
-        },
         "dependencies": [{"dataset_id": DATASET, "snapshot_id": SOURCE_SNAPSHOT}],
     }
 
@@ -522,6 +522,10 @@ def test_analysis_role_evidence_view_count_boundaries():
     with pytest.raises(ValidationError):
         PythonInput.model_validate(analysis_payload("python", nine))
 
+    assert len(SQLInput.model_validate(analysis_payload("sql", eight)).evidence) == 8
+    with pytest.raises(ValidationError):
+        SQLInput.model_validate(analysis_payload("sql", nine))
+
     combined = analysis_payload("sql", eight)
     combined["table_profiles"] = [shaped_evidence(8)]
     with pytest.raises(ValidationError, match="combined"):
@@ -541,6 +545,15 @@ def test_supervisor_view_and_chart_boundaries():
         SupervisorInput.model_validate({**payload, "charts": [chart(index) for index in range(5)]})
     with pytest.raises(ValidationError, match="32 rows"):
         SupervisorInput.model_validate({**payload, "evidence": [shaped_evidence(rows=33)]})
+    with pytest.raises(ValidationError, match="32 visible columns"):
+        SupervisorInput.model_validate({**payload, "evidence": [shaped_evidence(preview_columns=33)]})
+    assert len(SupervisorInput.model_validate({
+        **payload, "evidence": [shaped_evidence(index) for index in range(8)],
+    }).evidence) == 8
+    with pytest.raises(ValidationError):
+        SupervisorInput.model_validate({
+            **payload, "evidence": [shaped_evidence(index) for index in range(9)],
+        })
 
 
 def test_answer_view_boundaries_without_reviewer_shrink():
@@ -562,5 +575,48 @@ def test_answer_view_boundaries_without_reviewer_shrink():
     too_large["evidence_id"] = EVIDENCE
     with pytest.raises(ValidationError, match="128 rows"):
         AnswerInput.model_validate({**payload, "evidence": [too_large]})
+    too_wide = shaped_evidence(preview_columns=33)
+    too_wide["evidence_id"] = EVIDENCE
+    with pytest.raises(ValidationError, match="32 visible columns"):
+        AnswerInput.model_validate({**payload, "evidence": [too_wide]})
     with pytest.raises(ValidationError):
         AnswerInput.model_validate({**payload, "charts": [chart(i) for i in range(5)]})
+
+    reviewer = {
+        **common("reviewer"),
+        "request": {
+            "review_id": REVIEW, "draft_id": DRAFT, "draft_content_hash": HASH,
+            "draft_input_packet_hash": HASH, "rendering_policy_version": "render-1",
+            "review_pass": 1,
+        },
+        "draft": {
+            "blocks": [{
+                "block_id": "answer", "kind": "general_explanation",
+                "spans": [{"kind": "text", "text": "There is one order."}], "supports": [],
+            }],
+            "unmet_deliverables": [],
+        },
+        "rendered_text": "There is one order.", "draft_input": payload,
+        "review_input_packet_hash": HASH,
+    }
+    assert ReviewInput.model_validate(reviewer).draft_input.evidence[0].preview.returned_row_count == 128
+
+
+def test_answer_evidence_view_count_boundary():
+    def payload(views):
+        return {
+            **common("answer"), "task_id": TASK, "attempt": 1,
+            "request": {
+                "type": "answer", "action_id": ACTION, "objective": "Answer exactly",
+                "constraints": constraints(),
+                "evidence_ids": [item["evidence_id"] for item in views],
+                "chart_artifact_ids": [],
+            },
+            "evidence": views, "charts": [], "obligations": [], "unmet_facts": [],
+            "partial_authorization": None, "revision": None,
+        }
+
+    eight = [shaped_evidence(index) for index in range(8)]
+    assert len(AnswerInput.model_validate(payload(eight)).evidence) == 8
+    with pytest.raises(ValidationError):
+        AnswerInput.model_validate(payload([shaped_evidence(index) for index in range(9)]))

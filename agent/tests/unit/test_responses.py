@@ -271,6 +271,30 @@ def test_python_failure_reuses_structured_tool_error():
     assert result.error.code == "query_timeout"
 
 
+@pytest.mark.parametrize(
+    "code",
+    [
+        "python_execution_error",
+        "output_validation_error",
+        "chart_render_error",
+        "execution_timeout",
+        "resource_limit_exceeded",
+        "environment_unavailable",
+    ],
+)
+def test_python_failure_round_trips_approved_python_error_codes(code):
+    payload = {**PYTHON_FAILED, "error": {**ERROR, "code": code}}
+    result = PYTHON_ADAPTER.validate_python(payload)
+    assert result.error.code == code
+    assert PYTHON_ADAPTER.validate_json(result.model_dump_json()) == result
+
+
+@pytest.mark.parametrize("code", ["python_timeout", "chart_error", "environment_missing"])
+def test_unapproved_python_error_names_remain_rejected(code):
+    with pytest.raises(ValidationError, match="literal_error"):
+        ToolError.model_validate({**ERROR, "code": code})
+
+
 def test_outcome_references_accept_existing_non_v4_ids():
     assert ADAPTER.validate_python({**SUCCEEDED, "evidence_ids": [EXISTING_ID]}).evidence_ids == [EXISTING_ID]
     result = PYTHON_ADAPTER.validate_python(
