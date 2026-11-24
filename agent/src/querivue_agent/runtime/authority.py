@@ -237,6 +237,10 @@ class Authority:
             request_json='{}',
         )
 
+        # Extract tasks from proposal for QueueReceipt and serialize
+        tasks = getattr(proposal, 'tasks', [])
+        tasks_json = [task.model_dump() for task in tasks]
+
         self._ops.record_queue_receipt(
             receipt_id=receipt_id,
             run_id=str(run_id),
@@ -248,7 +252,7 @@ class Authority:
             run_revision=1,
             task_mapping={},
             action_mapping={},
-            tasks=[],
+            tasks=tasks_json,
             withdrawn_task_ids=[],
         )
         return QueueReceipt(
@@ -262,7 +266,7 @@ class Authority:
             run_revision=1,
             task_mapping={},
             action_mapping={},
-            tasks=[],
+            tasks=tasks,
             withdrawn_task_ids=[],
         )
 

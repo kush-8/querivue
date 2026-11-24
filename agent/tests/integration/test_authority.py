@@ -260,18 +260,44 @@ def test_commit_decision(authority: Authority, ops: LedgerOps) -> None:
     )
 
     # Provide a valid task with action for propose_queue
-    from querivue_agent.contracts.actions import Task, SQLAction, AnalysisConstraints
+    from querivue_agent.contracts.actions import Task, SQLAction, AnalysisConstraints, DateWindow
+    from querivue_agent.contracts.values import Int64Scalar
     task_id = str(uuid4())
     action_id = str(uuid4())
+
+    # Create minimal valid AnalysisConstraints
+    constraints = AnalysisConstraints(
+        metric_definitions={"count": "count(*)"},
+        filters=[],
+        date_windows=[
+            DateWindow(
+                source_id=V1,
+                column="created_at",
+                lower=Int64Scalar(kind="int64", value="0"),
+                upper=Int64Scalar(kind="int64", value="9223372036854775807"),
+                lower_inclusive=True,
+                upper_inclusive=True,
+            )
+        ],
+        analysis_timezone="UTC",
+        grain="day",
+        units={"count": "rows"},
+    )
+
+    task_id = str(uuid4())
+    action_id = str(uuid4())
+    table_id = str(uuid4())
     task = Task(
         task_id=task_id,
+        type="analysis",
+        requires=[],
         actions=[
             SQLAction(
                 action_id=action_id,
                 type="sql",
                 objective="Test query",
-                table_ids=[],
-                constraints=AnalysisConstraints(),
+                table_ids=[table_id],
+                constraints=constraints,
                 input_evidence_ids=[],
             )
         ],
