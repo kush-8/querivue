@@ -17,6 +17,7 @@ from querivue_agent.contracts.budgets import (
 )
 from querivue_agent.contracts.budgets import ClockReading
 from querivue_agent.contracts.common import OwnerFence, Scope
+from querivue_agent.contracts.entry import EntryInput as IntakeEntryInput
 from querivue_agent.contracts.inputs import ReviewInput
 from querivue_agent.contracts.records import (
     AdmissionReceipt,
@@ -59,12 +60,13 @@ class Authority:
             eligible_dataset_ids=[],
         )
 
-    def record_intake(self, request, scope: Scope) -> IntakeReceipt:
+    def record_intake(self, request: IntakeEntryInput, scope: Scope) -> IntakeReceipt:
         """Record intake request and return receipt."""
         intake_id = str(uuid4())
         submission_key = f"intake-{intake_id}"
-        original_hash = str(uuid4())  # In reality, this would be hash of request
+        original_hash = request.submission_hash
         fence_json = f'{{"subject_kind": "intake", "subject_id": "{intake_id}"}}'
+        created_at = datetime.utcnow().isoformat() + "Z"
         expires_at = "2099-12-31T23:59:59.999999Z"
 
         self._ops.create_intake(
@@ -77,7 +79,8 @@ class Authority:
             expires_at=expires_at,
         )
 
-        return IntakeReceipt(
+        # Create IntakeReceipt with proper types
+        intake_receipt = IntakeReceipt(
             intake_id=intake_id,
             submission_key=submission_key,
             input=request,
@@ -94,12 +97,13 @@ class Authority:
             ),
             entry_question_id=None,
             outcome=None,
-            created_at=expires_at,
+            created_at=created_at,
             expires_at=expires_at,
             status="pending",
             invocation_ids=[],
             charge_ref=None,
         )
+        return intake_receipt
 
     def claim_run(self, run_id: UUID, owner_id: UUID) -> OwnerFence:
         """Claim run ownership."""
@@ -154,6 +158,9 @@ class Authority:
         if chat_id is None:
             # For new questions without a chat, create a new chat
             chat_id = str(uuid4())
+            self._ops.create_chat(chat_id, admission.scope.project_id)
+        else:
+            # Ensure chat exists (for existing chat_id)
             self._ops.create_chat(chat_id, admission.scope.project_id)
 
         # Create scope with run_id for the budget

@@ -22,7 +22,7 @@ from .common import (
     TimestampText,
 )
 from .content import BlockID, Draft
-from .entry import EntryAccept, EntryOutcome
+from .entry import EntryAccept, EntryInput as IntakeEntryInput, EntryOutcome
 from .evidence import ChartArtifact, TabularEvidence
 from .inputs import EntryInput, ReviewRequest, UserMessage
 from .manifests import InferenceSettings, ProviderIdentity, ResourceProfile, SchemaDescriptor, ToolDeclaration
@@ -194,7 +194,7 @@ AdmissionTarget: TypeAlias = Annotated[
 class IntakeReceipt(StrictRecord):
     intake_id: RuntimeUUID
     submission_key: NonblankString
-    input: EntryInput
+    input: IntakeEntryInput
     original_hash: Hash64
     fence: OwnerFence
     entry_question_id: CanonicalUUID | None

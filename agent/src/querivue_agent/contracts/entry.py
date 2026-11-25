@@ -5,7 +5,7 @@ from typing import Annotated, Literal
 
 from pydantic import AfterValidator, Field
 
-from .common import NonblankString, StrictRecord
+from .common import NonblankString, Scope, StrictRecord
 from .values import CanonicalUUID
 
 
@@ -25,6 +25,37 @@ def _text_2048(value: str) -> str:
 
 PolicyReason = Annotated[str, Field(strict=True), AfterValidator(_policy_reason)]
 Explanation = Annotated[NonblankString, AfterValidator(_text_2048)]
+
+
+class EntryInput(StrictRecord):
+    project_id: CanonicalUUID
+    chat_id: CanonicalUUID | None
+    question: str
+    eligible_dataset_ids: list[CanonicalUUID]
+
+    @property
+    def submission_hash(self) -> str:
+        """Compute SHA-256 hash of the input for deduplication."""
+        import hashlib
+        import json
+        data = {
+            "project_id": self.project_id,
+            "chat_id": self.chat_id,
+            "question": self.question,
+            "eligible_dataset_ids": self.eligible_dataset_ids,
+        }
+        canonical = json.dumps(data, separators=(",", ":"), sort_keys=True)
+        return hashlib.sha256(canonical.encode()).hexdigest()
+
+    @property
+    def scope(self) -> Scope:
+        """Return the scope for this intake."""
+        return Scope(
+            project_id=self.project_id,
+            chat_id=self.chat_id,
+            run_id=None,
+            eligible_dataset_ids=self.eligible_dataset_ids,
+        )
 
 
 class EntryAccept(StrictRecord):

@@ -9,6 +9,8 @@ Organized 14 November 2026. Confirmed foundations and remaining design work; com
 | [Project status review](../status-review.md) | Current design/implementation status, outstanding owners and recommended sequence. |
 | [Standalone implementation plan](../implementation/standalone-agent.md) | Proposed file/interface/task sequence and acceptance checks for agent milestones 1A–1G; pending implementation-plan review. |
 | [Data ingestion](data-ingestion.md) | Upload preparation, import confirmation, formats and immutable dataset publication. |
+| [Database and storage](database-storage.md) | Phase 2 design approved and closed: Django/Postgres authority, schema/ownership, lifecycle/deletion, file cleanup and verified migration contracts; runtime acceptance remains outstanding. |
+| [Backend API and Chat](backend-api.md) | Phase 3: ordinary Django JSON and WebSocket Chat direction selected; concrete HTTP/socket, replay/security and lifecycle packet awaiting review. |
 | [Sandbox execution](sandbox-execution.md) | Execution isolation, storage handoff and the E2B assessment. |
 | [Supervisor](supervisor.md) | Planning, state, delegation, outcomes and review flow. |
 | [Agent integration](agent-integration.md) | Design closed through rounds 1–7: graph/state, entry, memory/context, controls, finite limits, canonical recovery/concurrency and integrated acceptance gates. |
@@ -69,7 +71,7 @@ A new constraint discovered during implementation must be checked against the ag
 ## Decisions still open
 
 - Background execution framework and broker configuration. Celery with Redis is the current proposal.
-- Progress delivery. Polling run status is the initial proposal. Decide whether the frontend needs live streamed events.
+- WebSocket Chat delivery is selected in Phase 3. Concrete socket admission, durable replay/chunking/backpressure and cross-process delivery remain under the [API review](backend-api.md); transport implementation and real reconnect/revocation evidence remain outstanding.
 - Implementation of approved shared run/attempt/control transactions, clarification resume, retry/checkpoint reconciliation and source deletion/publication semantics; exact adapter/API wiring and live proof remain required.
 - Exact sandbox manifests/configuration, measured resource limits and live verification of approved access/isolation/artifact policies.
 - Shared agent/runtime interfaces and executable model/prompt/evaluation/observability configuration; component-specific handoffs and privacy policies are approved.

@@ -36,3 +36,6 @@ build-backend = "uv_build"
 
 [tool.uv.build-backend]
 data = { data = "config" }
+
+[project.scripts]
+querivue = "querivue_agent.__main__:main"

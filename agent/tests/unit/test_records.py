@@ -220,14 +220,31 @@ def model_usage() -> dict:
 
 
 def intake_receipt() -> dict:
-    entry = entry_input()
+    # Use the simpler IntakeEntryInput format (from contracts.entry)
+    entry = {
+        "project_id": uid(1),
+        "chat_id": uid(2),
+        "question": "show upload instructions",
+        "eligible_dataset_ids": [uid(4)],
+    }
+    # Scope for fence (without question)
+    scope_for_fence = {
+        "project_id": uid(1),
+        "chat_id": uid(2),
+        "run_id": None,
+        "eligible_dataset_ids": [uid(4)],
+    }
+    import hashlib
+    import json
+    canonical = json.dumps(entry, separators=(",", ":"), sort_keys=True)
+    submission_hash = hashlib.sha256(canonical.encode()).hexdigest()
     intake_id = uid(40)
     return {
         "intake_id": intake_id,
         "submission_key": "submission-1",
         "input": entry,
-        "original_hash": entry["submission_hash"],
-        "fence": fence(entry["scope"], kind="intake", subject_id=intake_id),
+        "original_hash": submission_hash,
+        "fence": fence(scope_for_fence, kind="intake", subject_id=intake_id),
         "entry_question_id": None,
         "outcome": None,
         "created_at": T0,

@@ -1,0 +1,1 @@
+{"event_id":"8f8e9516-7343-4ae8-bc85-ce8d826aef70","timestamp":"2026-11-24T21:29:29.495068Z","run_id":"test-run","invocation_id":null,"event_type":"run_start","payload":{"test":"data"},"duration_ms":null,"tokens":null,"cost_usd":null}
