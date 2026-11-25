@@ -60,7 +60,7 @@ def chart_output(name="trend", evidence_id=EXISTING_ID):
         (PreviewRowsRequest, {"table_id": TABLE_ID, "columns": None, "limit": 1}),
         (InspectEvidenceRequest, {"evidence_id": EVIDENCE_ID}),
         (ExecuteQueryRequest, {"sql": "SELECT :amount", "parameters": {"amount": DECIMAL}}),
-        (ExecutePythonRequest, {"code": "result = 1", "input_evidence_ids": [EXISTING_ID], "outputs": []}),
+        (ExecutePythonRequest, {"code": "result = 1", "input_evidence_ids": [EXISTING_ID], "outputs": [{"name": "result", "kind": "evidence", "description": "Result", "shape": "table", "columns": [{"name": "value", "type": {"tag": "float64"}, "nullable": False}]}]}),
     ],
 )
 def test_tool_requests_round_trip_representative_protocol_shapes(model, payload):

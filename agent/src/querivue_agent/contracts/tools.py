@@ -58,7 +58,7 @@ class ExecuteQueryRequest(_StrictModel):
 class ExecutePythonRequest(_StrictModel):
     code: NonblankString
     input_evidence_ids: list[CanonicalUUID] = Field(min_length=1)
-    outputs: list[OutputDeclaration]
+    outputs: list[OutputDeclaration] = Field(min_length=1)
 
     @field_validator("input_evidence_ids")
     @classmethod
