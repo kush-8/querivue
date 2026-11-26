@@ -42,8 +42,8 @@ class NVIDIAProvider(ModelProvider):
             sdk_version="1.0.0",
             protocol_version="1.0",
             tokenizer_version="1.0",
-            tokenizer_build_hash="unknown",
-            rate_manifest_hash="unknown",
+            tokenizer_build_hash="e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            rate_manifest_hash="e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
             observed_revision="unknown",
             max_context_tokens=32768,
             rates=[

@@ -20,7 +20,7 @@ NonblankString = Annotated[UnicodeString, AfterValidator(_nonblank)]
 
 
 class _StrictModel(BaseModel):
-    model_config = ConfigDict(strict=True, extra="forbid")
+    model_config = ConfigDict(strict=True, extra="forbid", exclude_none=True)
 
 
 class DateWindow(_StrictModel):
@@ -101,6 +101,7 @@ class AnswerRequest(_ActionRequest):
 
 class AnswerAction(AnswerRequest):
     action_id: RuntimeUUID
+    draft_id: CanonicalUUID | None = Field(default=None, exclude=True)
 
 
 class DirectAnswerRequest(_StrictModel):
