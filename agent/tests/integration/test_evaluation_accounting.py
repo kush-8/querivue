@@ -19,24 +19,24 @@ def test_manifest_admission():
 
 def test_oracle_result():
     """Test oracle calculation for a fixture case."""
-    # T18: Author/review the finite D01-D24/H01-H24 templates
-    # independently calculated numeric gold
-    from uuid import uuid4
-    from querivue_agent.runtime.authority import Authority
-    from querivue_agent.storage.ledger import Ledger
-    ledger = Ledger.open("/tmp/test_oracle.db")
-    authority = Authority(ledger)
-    assert authority is not None
+    pytest.skip("independent evaluation oracles are not implemented")
 
 
-def test_baseline_construction():
+def test_baseline_construction(tmp_path):
     """Test baseline construction with authority and handlers."""
-    from uuid import uuid4
     from querivue_agent.runtime.authority import Authority
     from querivue_agent.storage.ledger import Ledger
-    ledger = Ledger.open("/tmp/test_baseline.db")
-    authority = Authority(ledger)
-    assert authority is not None
+    ledger = Ledger.open(tmp_path / "baseline.db")
+    try:
+        scope = Authority(ledger).initialize_scope(tmp_path)
+        with ledger.transaction() as conn:
+            row = conn.execute(
+                "SELECT project_id FROM projects WHERE project_id = ?",
+                (str(scope.project_id),),
+            ).fetchone()
+        assert row[0] == str(scope.project_id)
+    finally:
+        ledger.close()
 
 
 def test_evaluation_report():
@@ -51,19 +51,19 @@ def test_evaluation_report():
     assert entry.disposition == "accept"
 
 
-def test_development_heldout():
+def test_development_heldout(tmp_path):
     """Test development vs held-out case separation."""
-    from uuid import uuid4
     from querivue_agent.runtime.authority import Authority
     from querivue_agent.storage.ledger import Ledger
-    # Development cases
-    ledger_dev = Ledger.open("/tmp/test_dev.db")
-    auth_dev = Authority(ledger_dev)
-    # Held-out cases
-    ledger_ho = Ledger.open("/tmp/test_ho.db")
-    auth_ho = Authority(ledger_ho)
-    assert auth_dev is not None
-    assert auth_ho is not None
+    ledger_dev = Ledger.open(tmp_path / "development.db")
+    ledger_ho = Ledger.open(tmp_path / "heldout.db")
+    try:
+        dev_scope = Authority(ledger_dev).initialize_scope(tmp_path)
+        heldout_scope = Authority(ledger_ho).initialize_scope(tmp_path)
+        assert dev_scope.project_id != heldout_scope.project_id
+    finally:
+        ledger_dev.close()
+        ledger_ho.close()
 
 
 def test_threshold_checks():
@@ -92,12 +92,7 @@ def test_partial_invalidation():
 
 def test_fixture_hashes():
     """Test that generation/template families are separated, not just seeds/renamed data."""
-    from uuid import uuid4
-    from querivue_agent.runtime.authority import Authority
-    from querivue_agent.storage.ledger import Ledger
-    ledger = Ledger.open("/tmp/test_hashes.db")
-    authority = Authority(ledger)
-    assert authority is not None
+    pytest.skip("evaluation fixture generation and family hashing are not implemented")
 
 
 def test_config_freeze():

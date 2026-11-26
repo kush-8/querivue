@@ -7,11 +7,14 @@ Organized 14 November 2026. Confirmed foundations and remaining design work; com
 | Document | Scope |
 | --- | --- |
 | [Project status review](../status-review.md) | Current design/implementation status, outstanding owners and recommended sequence. |
+| [Floorplan readiness review](../floorplan-attention-review.md) | Focused 26 November source/test audit of eight open engineering gates and the package-marker false positive; no live readiness claim. |
 | [Standalone implementation plan](../implementation/standalone-agent.md) | Proposed file/interface/task sequence and acceptance checks for agent milestones 1A–1G; pending implementation-plan review. |
 | [Data ingestion](data-ingestion.md) | Upload preparation, import confirmation, formats and immutable dataset publication. |
 | [Database and storage](database-storage.md) | Phase 2 design approved and closed: Django/Postgres authority, schema/ownership, lifecycle/deletion, file cleanup and verified migration contracts; runtime acceptance remains outstanding. |
 | [Backend API and Chat](backend-api.md) | Phase 3 design approved and closed: Django HTTP plus Channels WebSocket Chat, ticket admission, durable replay/chunking, lifecycle/download and worker handoff contracts. |
 | [Background workers](background-workers.md) | Phase 4 design approved and closed: Celery/Redis, control/execution/maintenance roles, durable intents/claims, acknowledgment and bounded recovery; runtime gates remain. |
+| [Worker checkpoints](worker-checkpoints.md) | Phase 5 design approved and closed: standalone RedisSaver binding, ledger-selected projection descriptors, fenced restore/replay, waits, compatibility/deletion and restart acceptance gates. |
+| [Backend integration verification](backend-integration.md) | Phase 6 verification design approved and closed: layered real-stack/scripted/live evidence, B01–B13 scenarios, isolated faults, independent oracles and strict reporting; outcomes unrun. |
 | [Sandbox execution](sandbox-execution.md) | Execution isolation, storage handoff and the E2B assessment. |
 | [Supervisor](supervisor.md) | Planning, state, delegation, outcomes and review flow. |
 | [Agent integration](agent-integration.md) | Design closed through rounds 1–7: graph/state, entry, memory/context, controls, finite limits, canonical recovery/concurrency and integrated acceptance gates. |

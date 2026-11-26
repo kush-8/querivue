@@ -85,24 +85,29 @@ def test_duplicate_json_keys():
     assert entry.disposition == "accept"
 
 
-def test_numeric_precision_preservation():
+def test_numeric_precision_preservation(tmp_path):
     """Test that decimal/large integer values round-trip exactly."""
-    from uuid import uuid4
-    from querivue_agent.runtime.authority import Authority
     from querivue_agent.storage.ledger import Ledger
-    ledger = Ledger.open("/tmp/test_precision.db")
-    authority = Authority(ledger)
-    assert authority is not None
+    ledger = Ledger.open(tmp_path / "precision.db")
+    try:
+        with ledger.transaction() as conn:
+            value = conn.execute("SELECT ?", (9007199254740993,)).fetchone()[0]
+        assert value == 9007199254740993
+    finally:
+        ledger.close()
 
 
-def test_timezone_handling():
+def test_timezone_handling(tmp_path):
     """Test timezone-free/offset/DST/sub-microsecond conversions."""
-    from uuid import uuid4
-    from querivue_agent.runtime.authority import Authority
     from querivue_agent.storage.ledger import Ledger
-    ledger = Ledger.open("/tmp/test_tz.db")
-    authority = Authority(ledger)
-    assert authority is not None
+    timestamp = "2026-11-26T10:15:30.123456+05:30"
+    ledger = Ledger.open(tmp_path / "timezone.db")
+    try:
+        with ledger.transaction() as conn:
+            value = conn.execute("SELECT ?", (timestamp,)).fetchone()[0]
+        assert value == timestamp
+    finally:
+        ledger.close()
 
 
 def test_profile_summary():
@@ -134,12 +139,7 @@ def test_source_key_hint():
 
 def test_key_bound():
     """Test eight-candidate key bound."""
-    from uuid import uuid4
-    from querivue_agent.runtime.authority import Authority
-    from querivue_agent.storage.ledger import Ledger
-    ledger = Ledger.open("/tmp/test_keybound.db")
-    authority = Authority(ledger)
-    assert authority is not None
+    pytest.skip("ingestion key-candidate selection is not implemented")
 
 
 def test_name_collisions():
@@ -166,10 +166,4 @@ def test_failed_successful_replacement():
 
 def test_archive_parser_expansion():
     """Test ZIP/XML checks happen before workbook library parsing."""
-    # Core principle: no recalculation or external links
-    from uuid import uuid4
-    from querivue_agent.runtime.authority import Authority
-    from querivue_agent.storage.ledger import Ledger
-    ledger = Ledger.open("/tmp/test_archive.db")
-    authority = Authority(ledger)
-    assert authority is not None
+    pytest.skip("archive preflight parsing is not implemented")

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid4
@@ -66,7 +66,7 @@ class Authority:
         submission_key = f"intake-{intake_id}"
         original_hash = request.submission_hash
         fence_json = f'{{"subject_kind": "intake", "subject_id": "{intake_id}"}}'
-        created_at = datetime.utcnow().isoformat() + "Z"
+        created_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         expires_at = "2099-12-31T23:59:59.999999Z"
 
         self._ops.create_intake(
@@ -196,7 +196,7 @@ class Authority:
             eligible_dataset_ids=admission.scope.eligible_dataset_ids,
             budget_json=initial_budget.model_dump_json(),
             configuration_hash=admission.configuration_hash,
-            deadline=datetime.utcnow().isoformat() + "Z",
+            deadline=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         )
 
         self._ops.create_admission_receipt(
@@ -219,7 +219,7 @@ class Authority:
             cutoff_sequence=0,
             budget=initial_budget,
             configuration_hash=admission.configuration_hash,
-            accepted_at=datetime.utcnow().isoformat() + "Z",
+            accepted_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         )
 
     def commit_decision(
@@ -280,7 +280,7 @@ class Authority:
     def reserve_model(self, request: ModelRequest, fence: OwnerFence) -> ModelReservation:
         """Reserve model tokens and cost."""
         now = ClockReading(
-            utc_timestamp=datetime.utcnow().isoformat() + "Z",
+            utc_timestamp=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             monotonic_milliseconds=0,
             process_id=str(uuid4()),
             trusted=True,
@@ -356,7 +356,7 @@ class Authority:
     def reserve_review(self, request: ReviewInput, fence: OwnerFence) -> ReviewReservation:
         """Reserve review pass."""
         now = ClockReading(
-            utc_timestamp=datetime.utcnow().isoformat() + "Z",
+            utc_timestamp=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             monotonic_milliseconds=0,
             process_id=str(uuid4()),
             trusted=True,
@@ -440,7 +440,7 @@ class Authority:
             entry_intake_id=reply.entry_intake_id,
             run_revision=1,
             owner_generation=1,
-            accepted_at=datetime.utcnow().isoformat() + "Z",
+            accepted_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             original_deadline="2099-12-31T23:59:59.999999Z",
             scope=fence.scope,
         )

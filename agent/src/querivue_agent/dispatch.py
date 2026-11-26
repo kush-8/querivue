@@ -9,7 +9,12 @@ from uuid import UUID, uuid4
 from querivue_agent.contracts.records import QueueReceipt, Task
 from querivue_agent.contracts.control import SupervisorDecision, ProposeQueue
 from querivue_agent.runtime.graph_state import RunState, Task as GraphTask
-from querivue_agent.runtime.wrappers import run_specialist, get_specialist_wrapper, get_input_builder
+from querivue_agent.runtime.wrappers import (
+    WrapperContext,
+    run_specialist,
+    get_specialist_wrapper,
+    get_input_builder,
+)
 from querivue_agent.context import (
     build_supervisor_input,
     build_sql_input,
@@ -18,9 +23,6 @@ from querivue_agent.context import (
     build_review_input,
     build_clarification_input,
 )
-from querivue_agent.runtime.graph_state import WrapperContext
-
-
 async def dispatch_queue(
     run_state: RunState,
     decision: SupervisorDecision,

@@ -20,10 +20,11 @@ from querivue_agent.contracts.control import (
 )
 from querivue_agent.contracts.inputs import SupervisorInput
 from querivue_agent.contracts.actions import Task, SQLAction, PythonAction, AnswerAction, ClarificationAction, DirectAnswer
-from querivue_agent.contracts.common import BlockID, SafeCount
+from querivue_agent.contracts.common import SafeCount
+from querivue_agent.contracts.content import BlockID
 from querivue_agent.contracts.records import QueueReceipt
-from querivue_agent.runtime.wrappers import run_specialist
-from querivue_agent.runtime.graph_state import RunState, WrapperContext
+from querivue_agent.runtime.wrappers import WrapperContext, run_specialist
+from querivue_agent.runtime.graph_state import RunState
 
 
 async def decide(request: SupervisorInput, *, model) -> SupervisorDecision:

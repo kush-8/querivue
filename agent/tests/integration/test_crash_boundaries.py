@@ -45,47 +45,27 @@ def test_hostile_cell_instructions():
 
 def test_missing_context_packet_overflow():
     """Test that missing context does not cause packet overflow."""
-    assert True  # Structural validation principle
+    pytest.skip("context-packet overflow handling is not implemented")
 
 
 def test_direct_arithmetic_latch_escape():
     """Test that Direct arithmetic cannot escape the latch."""
-    from uuid import uuid4
-    from querivue_agent.runtime.authority import Authority
-    from querivue_agent.storage.ledger import Ledger
-    ledger = Ledger.open("/tmp/test_crash4.db")
-    authority = Authority(ledger)
-    assert authority is not None
+    pytest.skip("direct-answer latch execution is not implemented")
 
 
 def test_concurrent_reservations():
     """Test that concurrent reservations respect protected terminal capacity."""
-    from uuid import uuid4
-    from querivue_agent.runtime.authority import Authority
-    from querivue_agent.storage.ledger import Ledger
-    ledger = Ledger.open("/tmp/test_crash5.db")
-    authority = Authority(ledger)
-    assert authority is not None
+    pytest.skip("concurrent terminal-capacity reservation is not implemented")
 
 
 def test_no_progress_same_attempt():
     """Test that same-attempt crash replay does not cause double publication."""
-    from uuid import uuid4
-    from querivue_agent.runtime.authority import Authority
-    from querivue_agent.storage.ledger import Ledger
-    ledger = Ledger.open("/tmp/test_noprogress.db")
-    authority = Authority(ledger)
-    assert authority is not None
+    pytest.skip("crash replay publication recovery is not implemented")
 
 
 def test_duplicate_delivery_reuse():
     """Test that duplicate delivery reuses completed operation response."""
-    from uuid import uuid4
-    from querivue_agent.runtime.authority import Authority
-    from querivue_agent.storage.ledger import Ledger
-    ledger = Ledger.open("/tmp/test_duplicate.db")
-    authority = Authority(ledger)
-    assert authority is not None
+    pytest.skip("idempotent operation-delivery recovery is not implemented")
 
 
 def test_invalid_reference_handling():
@@ -101,12 +81,7 @@ def test_invalid_reference_handling():
 
 def test_partial_failure_recovery():
     """Test partial failure recovery across attempts."""
-    from uuid import uuid4
-    from querivue_agent.runtime.authority import Authority
-    from querivue_agent.storage.ledger import Ledger
-    ledger = Ledger.open("/tmp/test_partial.db")
-    authority = Authority(ledger)
-    assert authority is not None
+    pytest.skip("cross-attempt partial-failure recovery is not implemented")
 
 
 def test_finding_id_uniqueness():

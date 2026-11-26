@@ -17,10 +17,11 @@ from querivue_agent.contracts.entry import EntryInput as IntakeEntryInput, Entry
 from querivue_agent.contracts.values import CanonicalUUID, RuntimeUUID
 from querivue_agent.runtime.authority import Authority
 from querivue_agent.storage.ledger import Ledger
-from querivue_agent.storage.artifacts import ArtifactStore
 from querivue_agent.contracts.records import IntakeAdmission, NewRunTarget
 from datetime import datetime
-from uuid import uuid4
+
+
+UNAVAILABLE_EXIT = 3
 
 
 def _validate_config_path(path: str) -> Path:
@@ -137,74 +138,59 @@ async def cmd_init(args: argparse.Namespace, config: RunConfig) -> int:
     artifacts_dir.mkdir(parents=True, exist_ok=True)
 
     ledger = Ledger.open(ledger_path)
-    authority = Authority(ledger)
-
-    # Create scope
-    scope = authority.initialize_scope(state_dir)
-
-    result = {
-        "status": "initialized",
-        "project_id": scope.project_id,
-        "chat_id": scope.chat_id,
-        "state_dir": str(state_dir),
-    }
+    try:
+        scope = Authority(ledger).initialize_scope(state_dir)
+        result = {
+            "status": "initialized",
+            "project_id": scope.project_id,
+            "chat_id": scope.chat_id,
+            "state_dir": str(state_dir),
+        }
+    finally:
+        ledger.close()
     print(json.dumps(result))
     return 0
 
 
 async def cmd_import(args: argparse.Namespace, config: RunConfig) -> int:
     """Stage and inspect a data file."""
-    state_dir = args.state_dir
-    ledger_path = state_dir / "ledger.sqlite"
-    artifacts_dir = state_dir / "artifacts"
-
-    ledger = Ledger.open(ledger_path)
-    authority = Authority(ledger)
-    artifact_store = ArtifactStore(artifacts_dir)
-
-    # For now, return a placeholder - full implementation requires T10
     result = {
-        "status": "staged",
-        "message": "Import command requires T10 (CSV inspection, confirmation and atomic preparation) to be implemented",
-        "dataset_id": str(uuid4()),
-        "preview_id": str(uuid4()),
-        "settings_id": str(uuid4()),
+        "status": "unavailable",
+        "message": "Import inspection and staging are not implemented",
     }
     print(json.dumps(result))
-    return 0
+    return UNAVAILABLE_EXIT
 
 
 async def cmd_prepare(args: argparse.Namespace, config: RunConfig) -> int:
     """Confirm and prepare a dataset."""
-    state_dir = args.state_dir
-    ledger_path = state_dir / "ledger.sqlite"
-    artifacts_dir = state_dir / "artifacts"
-
-    ledger = Ledger.open(ledger_path)
-    authority = Authority(ledger)
-    artifact_store = ArtifactStore(artifacts_dir)
-
-    # For now, return a placeholder - full implementation requires T10
     result = {
-        "status": "prepared",
-        "message": "Prepare command requires T10 (CSV inspection, confirmation and atomic preparation) to be implemented",
+        "status": "unavailable",
+        "message": "Dataset preparation is not implemented",
         "dataset_id": args.dataset,
-        "attempt": 1,
     }
     print(json.dumps(result))
-    return 0
+    return UNAVAILABLE_EXIT
 
 
 async def cmd_ask(args: argparse.Namespace, config: RunConfig) -> int:
     """Submit a new question - grounded SQL vertical slice (1A) with T13 orchestration."""
     state_dir = args.state_dir
     ledger_path = state_dir / "ledger.sqlite"
-    artifacts_dir = state_dir / "artifacts"
-
     ledger = Ledger.open(ledger_path)
-    authority = Authority(ledger)
-    artifact_store = ArtifactStore(artifacts_dir)
+    try:
+        return await _cmd_ask_with_ledger(args, config, ledger)
+    finally:
+        ledger.close()
 
+
+async def _cmd_ask_with_ledger(
+    args: argparse.Namespace,
+    config: RunConfig,
+    ledger: Ledger,
+) -> int:
+    """Process an ask request using an owned ledger connection."""
+    authority = Authority(ledger)
     # Parse dataset IDs
     dataset_ids = []
     if args.dataset:
@@ -266,124 +252,85 @@ async def cmd_ask(args: argparse.Namespace, config: RunConfig) -> int:
     admission_receipt = authority.admit(admission)
     run_id = str(admission_receipt.run_id)
 
-    # For T13, we return a scripted result showing the flow would work
-    # Real SQL specialist, Answer specialist, Reviewer are wired in dispatch.py
     result = {
-        "status": "admitted",
+        "status": "unavailable",
         "run_id": run_id,
         "question": args.question,
-        "message": "T13 orchestration - entry admitted. Run 'querivue status --run <run_id>' to check progress.",
-        "evidence_refs": [],
-        "rendered_text": f"Analysis of: {args.question} (admitted, run_id: {run_id})",
+        "message": "Run admitted, but graph execution is not implemented",
     }
     print(json.dumps(result))
-    return 0
+    return UNAVAILABLE_EXIT
 
 
 async def cmd_reply(args: argparse.Namespace, config: RunConfig) -> int:
     """Reply to a clarification question."""
-    state_dir = args.state_dir
-    ledger_path = state_dir / "ledger.sqlite"
-    artifacts_dir = state_dir / "artifacts"
-
-    ledger = Ledger.open(ledger_path)
-    authority = Authority(ledger)
-    artifact_store = ArtifactStore(artifacts_dir)
-
     result = {
-        "status": "accepted",
-        "message": "Reply command requires T13 (Direct routing, Chat follow-ups and linked clarification) to be implemented",
+        "status": "unavailable",
+        "message": "Clarification replies are not implemented",
         "run_id": args.run,
         "question_id": args.question,
     }
     print(json.dumps(result))
-    return 0
+    return UNAVAILABLE_EXIT
 
 
 async def cmd_resume(args: argparse.Namespace, config: RunConfig) -> int:
     """Resume a run."""
-    state_dir = args.state_dir
-    ledger_path = state_dir / "ledger.sqlite"
-    artifacts_dir = state_dir / "artifacts"
-
-    ledger = Ledger.open(ledger_path)
-    authority = Authority(ledger)
-    artifact_store = ArtifactStore(artifacts_dir)
-
     result = {
-        "status": "resumed",
-        "message": "Resume command requires T16 (Fresh-process restore) to be implemented",
+        "status": "unavailable",
+        "message": "Run restoration is not implemented",
         "run_id": args.run,
     }
     print(json.dumps(result))
-    return 0
+    return UNAVAILABLE_EXIT
 
 
 async def cmd_status(args: argparse.Namespace, config: RunConfig) -> int:
     """Show run status."""
     state_dir = args.state_dir
     ledger_path = state_dir / "ledger.sqlite"
-    artifacts_dir = state_dir / "artifacts"
-
     ledger = Ledger.open(ledger_path)
-    from querivue_agent.storage.ledger import LedgerOps
-    ops = LedgerOps(ledger)
-    authority = Authority(ledger)
-    artifact_store = ArtifactStore(artifacts_dir)
-
-    run = ops.get_run(args.run)
-    if run is None:
-        result = {"status": "not_found", "run_id": args.run}
-    else:
-        result = {
-            "status": "found",
-            "run_id": args.run,
-            "project_id": run.get("project_id"),
-            "chat_id": run.get("chat_id"),
-            "question": run.get("question"),
-        }
+    try:
+        from querivue_agent.storage.ledger import LedgerOps
+        run = LedgerOps(ledger).get_run(args.run)
+        if run is None:
+            result = {"status": "not_found", "run_id": args.run}
+        else:
+            result = {
+                "status": "found",
+                "run_id": args.run,
+                "project_id": run.get("project_id"),
+                "chat_id": run.get("chat_id"),
+                "question": run.get("question"),
+            }
+    finally:
+        ledger.close()
     print(json.dumps(result))
     return 0
 
 
 async def cmd_evidence(args: argparse.Namespace, config: RunConfig) -> int:
     """Inspect evidence."""
-    state_dir = args.state_dir
-    ledger_path = state_dir / "ledger.sqlite"
-    artifacts_dir = state_dir / "artifacts"
-
-    ledger = Ledger.open(ledger_path)
-    authority = Authority(ledger)
-    artifact_store = ArtifactStore(artifacts_dir)
-
     result = {
         "status": "not_implemented",
-        "message": "Evidence inspection requires T11/T12 integration to be completed",
+        "message": "Evidence inspection is not implemented",
         "run_id": args.run,
         "evidence_id": args.id,
     }
     print(json.dumps(result))
-    return 0
+    return UNAVAILABLE_EXIT
 
 
 async def cmd_delete_dataset(args: argparse.Namespace, config: RunConfig) -> int:
     """Delete a dataset."""
-    state_dir = args.state_dir
-    ledger_path = state_dir / "ledger.sqlite"
-    artifacts_dir = state_dir / "artifacts"
-
-    ledger = Ledger.open(ledger_path)
-    authority = Authority(ledger)
-    artifact_store = ArtifactStore(artifacts_dir)
-
     result = {
         "status": "not_implemented",
-        "message": "Delete dataset requires T16 (deletion races) to be implemented",
+        "message": "Dataset deletion is not implemented",
         "project_id": args.project,
         "dataset_id": args.dataset,
     }
     print(json.dumps(result))
-    return 0
+    return UNAVAILABLE_EXIT
 
 
 async def cmd_evaluate(args: argparse.Namespace, config: RunConfig) -> int:
@@ -395,7 +342,7 @@ async def cmd_evaluate(args: argparse.Namespace, config: RunConfig) -> int:
         "mode": args.mode,
     }
     print(json.dumps(result))
-    return 0
+    return UNAVAILABLE_EXIT
 
 
 COMMANDS = {
@@ -412,39 +359,16 @@ COMMANDS = {
 }
 
 
-async def main(argv: Sequence[str] | None = None) -> int:
-    """Main CLI entry point."""
+async def _main(argv: Sequence[str] | None = None) -> int:
+    """Run the asynchronous CLI implementation."""
     parser = _make_parser()
     args = parser.parse_args(argv)
 
     # Load configuration
-    config_path = args.config or Path.cwd() / "config" / "development.toml"
-    if config_path.exists():
-        config = load_config(config_path, os.environ)
-    else:
-        # Use minimal offline config
-        config = RunConfig(
-            project_id="",
-            chat_id="",
-            state_dir=args.state_dir,
-            redis_url="redis://localhost:6379/0",
-            model_providers={},
-            sandbox_image="querivue-sandbox:latest",
-            sandbox_cpu=2,
-            sandbox_memory_gib=4,
-            sandbox_disk_gib=4,
-            max_run_seconds=600,
-            max_action_seconds=120,
-            sql_query_timeout_seconds=30,
-            python_call_timeout_seconds=60,
-            max_physical_requests_per_action=8,
-            max_tool_invocations_per_action=6,
-            max_query_executions_per_action=4,
-            max_no_progress_rounds=2,
-            max_review_passes=2,
-            output_bytes_limit=1048576,
-            output_files_limit=16,
-        )
+    config_path = args.config or (
+        Path(__file__).resolve().parents[2] / "config" / "development.toml"
+    )
+    config = load_config(config_path, os.environ)
 
     # Execute command
     handler = COMMANDS.get(args.command)
@@ -464,5 +388,10 @@ async def main(argv: Sequence[str] | None = None) -> int:
         return 1
 
 
+def main(argv: Sequence[str] | None = None) -> int:
+    """Run the CLI from synchronous module and console entry points."""
+    return asyncio.run(_main(argv))
+
+
 if __name__ == "__main__":
-    sys.exit(asyncio.run(main()))
+    sys.exit(main())

@@ -38,4 +38,4 @@ build-backend = "uv_build"
 data = { data = "config" }
 
 [project.scripts]
-querivue = "querivue_agent.__main__:main"
+querivue = "querivue_agent.cli:main"

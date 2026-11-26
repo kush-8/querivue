@@ -36,7 +36,8 @@ from querivue_agent.contracts.evidence import (
 from querivue_agent.contracts.artifacts import ArtifactRef, Sha256, SourceDependency
 from querivue_agent.contracts.values import CanonicalUUID, TypedScalar
 from querivue_agent.contracts.tools import ExecutePythonRequest, OutputDeclaration
-from querivue_agent.runtime.sandbox import SandboxController, SandboxTicket
+from querivue_agent.contracts.records import OperationRequest, SandboxTicket
+from querivue_agent.runtime.sandbox import SandboxController
 
 
 @dataclass(frozen=True)
@@ -65,16 +66,10 @@ class PythonRunner:
 
     async def start(self) -> None:
         """Initialize sandbox ticket."""
-        scope = self._config.authorized_evidence  # Using evidence as scope placeholder
-        # In reality, this would use a proper Scope object
-        from querivue_agent.contracts.common import Scope
-        scope_obj = Scope(
-            project_id=UUID("00000000-0000-0000-0000-000000000000"),
-            chat_id=None,
-            run_id=self._config.run_id,
-            eligible_dataset_ids=[],
+        raise NotImplementedError(
+            "Python execution is unavailable: SandboxController does not yet "
+            "implement ticket admission and operation publication"
         )
-        self._ticket = await self._sandbox.admit(scope_obj, "python-env-v1")
 
     async def execute_python(
         self,
@@ -82,8 +77,7 @@ class PythonRunner:
         operation_id: UUID,
     ) -> dict[str, Any]:
         """Execute Python code in fresh child interpreter."""
-        if not self._ticket:
-            await self.start()
+        await self.start()
 
         # Stage input evidence as read-only files
         input_paths = {}
@@ -101,7 +95,6 @@ class PythonRunner:
 
         try:
             # Execute in sandbox
-            from querivue_agent.runtime.sandbox import OperationRequest
             op_request = OperationRequest(
                 operation_id=operation_id,
                 scope=None,  # Would be proper scope
