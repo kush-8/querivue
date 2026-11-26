@@ -18,7 +18,7 @@ from querivue_agent.contracts.values import CanonicalUUID, RuntimeUUID
 from querivue_agent.runtime.authority import Authority
 from querivue_agent.storage.ledger import Ledger
 from querivue_agent.contracts.records import IntakeAdmission, NewRunTarget
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 UNAVAILABLE_EXIT = 3
@@ -230,10 +230,12 @@ async def _cmd_ask_with_ledger(
         print(json.dumps(result))
         return 0
 
-    # Admit the run
-    import hashlib
-    context_hash = hashlib.sha256(b"context").hexdigest()
-    config_hash = hashlib.sha256(b"config-v1").hexdigest()
+    # Admit the run - compute proper hashes from config and entry
+    import json
+    context_hash_data = intake_entry.model_dump(mode="json")
+    context_hash = hashlib.sha256(json.dumps(context_hash_data, sort_keys=True).encode()).hexdigest()
+    config_payload = config.model_dump(mode="json")
+    config_hash = hashlib.sha256(json.dumps(config_payload, sort_keys=True).encode()).hexdigest()
 
     admission = IntakeAdmission(
         admission_id=str(uuid4()),
@@ -246,7 +248,7 @@ async def _cmd_ask_with_ledger(
         policy_version="1.0",
         target=NewRunTarget(kind="new_run", run_id=RuntimeUUID(str(uuid4()))),
         fence=intake_receipt.fence,
-        accepted_at=datetime.utcnow().isoformat() + "Z",
+        accepted_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
     )
 
     admission_receipt = authority.admit(admission)
