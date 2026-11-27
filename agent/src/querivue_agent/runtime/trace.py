@@ -384,6 +384,9 @@ class TraceBoundary:
 
 def create_trace_recorder(run_id: str, trace_dir: Path | None = None) -> TraceRecorder:
     """Create a new trace recorder for a run."""
+    # If trace_dir is provided, use it as parent directory and append run_id
+    if trace_dir is not None:
+        trace_dir = trace_dir / run_id
     return TraceRecorder(run_id, trace_dir)
 
 

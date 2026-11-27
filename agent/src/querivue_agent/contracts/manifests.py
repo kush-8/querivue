@@ -117,7 +117,7 @@ class CostRate(StrictRecord):
 
 
 class ProviderIdentity(StrictRecord):
-    provider: Literal["google", "nvidia", "cloudflare", "openrouter"]
+    provider: Literal["google", "nvidia", "cloudflare", "openrouter", "ollama"]
     model_id: NonblankString
     endpoint: NonblankString
     route: NonblankString
@@ -141,15 +141,19 @@ class ProviderIdentity(StrictRecord):
     @classmethod
     def validate_endpoint(cls, value: str) -> str:
         endpoint = urlsplit(value)
+        # Allow HTTP only for localhost/local endpoints (e.g., Ollama)
+        # Require HTTPS for remote endpoints to protect secrets in transit
+        is_local = endpoint.netloc.startswith(("localhost", "127.0.0.1", "[::1]"))
+        allowed_scheme = "http" if is_local else "https"
         if (
-            endpoint.scheme != "https"
+            endpoint.scheme != allowed_scheme
             or not endpoint.netloc
             or endpoint.username is not None
             or endpoint.password is not None
             or endpoint.query
             or endpoint.fragment
         ):
-            raise ValueError("endpoint must be HTTPS without userinfo, query, or fragment")
+            raise ValueError(f"endpoint must be {allowed_scheme} without userinfo, query, or fragment")
         return value
 
     @field_validator("rates")

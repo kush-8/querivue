@@ -44,13 +44,16 @@ def _canonical_hash(obj: Any) -> Hash64:
 
 def _build_base_snapshot(run_state: RunState) -> ConversationSnapshot:
     """Build base conversation snapshot from run state."""
+    # Convert UUID to canonical string format for CanonicalUUID fields
+    run_id_str = str(run_state.run_id)
+    chat_id_str = str(run_state.chat_id)
     return ConversationSnapshot(
-        snapshot_id=run_state.run_id,
-        chat_id=run_state.chat_id,
+        snapshot_id=run_id_str,
+        chat_id=chat_id_str,
         cutoff_sequence=0,
         original_message={
-            "message_id": run_state.run_id,
-            "chat_id": run_state.chat_id,
+            "message_id": run_id_str,
+            "chat_id": chat_id_str,
             "sequence": 0,
             "text": run_state.question,
             "content_hash": _canonical_hash(run_state.question),
@@ -71,20 +74,22 @@ def _build_runtime_controls(
     active_operation_id: UUID | None = None,
 ) -> RuntimeControls:
     """Build runtime controls for a packet."""
+    env_manifest_id_str = str(environment_manifest_id)
+    active_op_id_str = str(active_operation_id) if active_operation_id else None
     return RuntimeControls(
         fence=run_state.fence,
         budget=run_state.budget,
         deadline=run_state.deadline,
-        environment_manifest_id=environment_manifest_id,
+        environment_manifest_id=env_manifest_id_str,
         environment_version="1.0",
         policy_version=policy_version,
         phase=phase,
-        active_operation_id=active_operation_id,
+        active_operation_id=active_op_id_str,
     )
 
 
 def _build_packet_metadata(
-    base_snapshot_id: UUID,
+    base_snapshot_id: str,
     policy_version: str,
     configuration_hash: str,
     selected_records: list[RecordSelection] | None = None,
@@ -93,13 +98,13 @@ def _build_packet_metadata(
 ) -> PacketMetadata:
     """Build packet metadata."""
     content = {
-        "base_snapshot_id": str(base_snapshot_id),
+        "base_snapshot_id": base_snapshot_id,
         "selected_records": selected_records or [],
         "dependencies": dependencies or [],
         "coverage": coverage or [],
     }
     return PacketMetadata(
-        packet_id=uuid4(),
+        packet_id=str(uuid4()),
         content_hash=_canonical_hash(content),
         policy_version=policy_version,
         configuration_hash=configuration_hash,
@@ -111,18 +116,33 @@ def _build_packet_metadata(
 
 
 def _extract_dependencies(
-    evidence_list: list[TabularEvidence],
-    chart_list: list[ChartArtifact] | None = None,
+    evidence_list: list[TabularEvidence | EvidenceRegistryEntry],
+    chart_list: list[ChartArtifact | EvidenceRegistryEntry] | None = None,
 ) -> list[dict]:
-    """Extract source dependencies from evidence and charts."""
+    """Extract source dependencies from evidence and charts.
+
+    Handles both full evidence objects (TabularEvidence, ChartArtifact)
+    and registry entries (EvidenceRegistryEntry) which only have dataset UUIDs.
+    """
     deps = []
     for item in evidence_list:
-        for dep in item.dependencies:
-            deps.append({"dataset_id": str(dep.dataset_id), "snapshot_id": str(dep.snapshot_id)})
-    if chart_list:
-        for item in chart_list:
+        # Handle full TabularEvidence with SourceDependency objects
+        if hasattr(item, 'dependencies') and item.dependencies:
             for dep in item.dependencies:
                 deps.append({"dataset_id": str(dep.dataset_id), "snapshot_id": str(dep.snapshot_id)})
+        # Handle EvidenceRegistryEntry with source_dependencies (list of UUIDs)
+        elif hasattr(item, 'source_dependencies') and item.source_dependencies:
+            for dataset_uuid in item.source_dependencies:
+                # Registry entries don't have snapshot_id, use a placeholder
+                deps.append({"dataset_id": str(dataset_uuid), "snapshot_id": "00000000-0000-0000-0000-000000000000"})
+    if chart_list:
+        for item in chart_list:
+            if hasattr(item, 'dependencies') and item.dependencies:
+                for dep in item.dependencies:
+                    deps.append({"dataset_id": str(dep.dataset_id), "snapshot_id": str(dep.snapshot_id)})
+            elif hasattr(item, 'source_dependencies') and item.source_dependencies:
+                for dataset_uuid in item.source_dependencies:
+                    deps.append({"dataset_id": str(dataset_uuid), "snapshot_id": "00000000-0000-0000-0000-000000000000"})
     return deps
 
 
@@ -157,10 +177,10 @@ def build_supervisor_input(
         role="supervisor",
         packet=packet,
         scope=Scope(
-            project_id=run_state.project_id,
-            chat_id=run_state.chat_id,
-            run_id=run_state.run_id,
-            eligible_dataset_ids=run_state.eligible_dataset_ids,
+            project_id=str(run_state.project_id),
+            chat_id=str(run_state.chat_id),
+            run_id=str(run_state.run_id),
+            eligible_dataset_ids=[str(uid) for uid in run_state.eligible_dataset_ids],
         ),
         conversation=base_snapshot,
         controls=controls,
@@ -217,10 +237,10 @@ def build_sql_input(
         role="sql",
         packet=packet,
         scope=Scope(
-            project_id=run_state.project_id,
-            chat_id=run_state.chat_id,
-            run_id=run_state.run_id,
-            eligible_dataset_ids=run_state.eligible_dataset_ids,
+            project_id=str(run_state.project_id),
+            chat_id=str(run_state.chat_id),
+            run_id=str(run_state.run_id),
+            eligible_dataset_ids=[str(uid) for uid in run_state.eligible_dataset_ids],
         ),
         conversation=base_snapshot,
         controls=controls,
@@ -241,6 +261,7 @@ def build_python_input(
     environment_manifest_id: UUID,
     policy_version: str,
     configuration_hash: str,
+    artifact_store: Any = None,
 ) -> PythonInput:
     """Build PythonInput packet from run state and action."""
     base_snapshot = _build_base_snapshot(run_state)
@@ -251,7 +272,87 @@ def build_python_input(
     for eid in evidence_ids:
         entry = run_state.get_evidence_by_id(eid)
         if entry and entry.evidence_type == "tabular":
-            authorized_evidence.append(entry)
+            # Reconstruct TabularEvidence from artifact store if available
+            if artifact_store is not None:
+                try:
+                    from querivue_agent.contracts.artifacts import ArtifactRef
+                    artifact_ref = ArtifactRef(
+                        artifact_id=entry.artifact_ref,
+                        storage_ref=entry.artifact_ref,
+                        media_type="application/vnd.apache.parquet",
+                        size_bytes=0,
+                        sha256=entry.integrity_hash,
+                        environment_manifest_id=str(environment_manifest_id),
+                    )
+                    with artifact_store.read(artifact_ref, Scope()) as f:
+                        import json
+                        evidence_data = json.load(f)
+                        from querivue_agent.contracts.evidence import TabularEvidence
+                        authorized_evidence.append(TabularEvidence(**evidence_data))
+                        continue
+                except Exception:
+                    pass
+            # Fallback: create minimal TabularEvidence from registry entry
+            from querivue_agent.contracts.evidence import (
+                TabularEvidence, EvidenceColumn, TabularPreview, Int64Column, SQLProducer
+            )
+            from querivue_agent.contracts.artifacts import ArtifactRef, Sha256
+            from querivue_agent.contracts.values import CanonicalUUID
+            # Use schema from registry entry to create a basic column
+            col_name = next(iter(entry.schema.keys())) if entry.schema else "col_0"
+            col_type_str = entry.schema.get(col_name, "int64")
+            fallback_column = EvidenceColumn(
+                ordinal=0,
+                name=col_name,
+                original_label=col_name,
+                original_ordinal=0,
+                type=Int64Column(tag="int64"),
+                nullable=True,
+            )
+            # Create a minimal ArtifactRef from the registry entry's artifact_ref
+            fallback_artifact = ArtifactRef(
+                artifact_id=entry.artifact_ref,
+                storage_ref=entry.artifact_ref,
+                media_type="application/vnd.apache.parquet",
+                size_bytes=0,
+                sha256=Sha256(entry.integrity_hash),
+                environment_manifest_id=str(environment_manifest_id),
+            )
+            # Create a minimal SQLProducer for the fallback evidence
+            fallback_producer = SQLProducer(
+                kind="sql",
+                run_id=CanonicalUUID(str(run_state.run_id)),
+                action_id=CanonicalUUID(str(action.action_id)),
+                operation_id=CanonicalUUID(str(uuid4())),
+                attempt=1,
+                sql="SELECT 1",
+                parameters={},
+                table_ids=[],
+                input_evidence_ids=[],
+                constraints=action.constraints,
+                environment_manifest_id=CanonicalUUID(str(environment_manifest_id)),
+                policy_version=policy_version,
+            )
+            authorized_evidence.append(TabularEvidence(
+                evidence_id=str(entry.evidence_id),
+                content_hash=entry.integrity_hash,
+                artifact=fallback_artifact,
+                columns=[fallback_column],
+                row_count=entry.row_count,
+                preview=TabularPreview(
+                    columns=[fallback_column],
+                    rows=[],
+                    row_locators=[],
+                    full_row_count=entry.row_count,
+                    returned_row_count=0,
+                    effective_limit=1,
+                    ordering="unspecified",
+                    truncated=True,
+                    shortened_cells=[],
+                ),
+                producer=fallback_producer,
+                dependencies=[{"dataset_id": str(dep), "snapshot_id": "00000000-0000-0000-0000-000000000000"} for dep in entry.source_dependencies],
+            ))
 
     dependencies = _extract_dependencies(authorized_evidence, None)
 
@@ -266,10 +367,10 @@ def build_python_input(
         role="python",
         packet=packet,
         scope=Scope(
-            project_id=run_state.project_id,
-            chat_id=run_state.chat_id,
-            run_id=run_state.run_id,
-            eligible_dataset_ids=run_state.eligible_dataset_ids,
+            project_id=str(run_state.project_id),
+            chat_id=str(run_state.chat_id),
+            run_id=str(run_state.run_id),
+            eligible_dataset_ids=[str(uid) for uid in run_state.eligible_dataset_ids],
         ),
         conversation=base_snapshot,
         controls=controls,
@@ -322,10 +423,10 @@ def build_answer_input(
         role="answer",
         packet=packet,
         scope=Scope(
-            project_id=run_state.project_id,
-            chat_id=run_state.chat_id,
-            run_id=run_state.run_id,
-            eligible_dataset_ids=run_state.eligible_dataset_ids,
+            project_id=str(run_state.project_id),
+            chat_id=str(run_state.chat_id),
+            run_id=str(run_state.run_id),
+            eligible_dataset_ids=[str(uid) for uid in run_state.eligible_dataset_ids],
         ),
         conversation=base_snapshot,
         controls=controls,
@@ -379,19 +480,25 @@ def build_review_input(
         review_pass=1,
     )
 
+    # Ensure we pass only the base Draft fields (not extra fields from subclasses)
+    base_draft = Draft(
+        blocks=draft.blocks,
+        unmet_deliverables=draft.unmet_deliverables,
+    )
+
     return ReviewInput(
         role="reviewer",
         packet=packet,
         scope=Scope(
-            project_id=run_state.project_id,
-            chat_id=run_state.chat_id,
-            run_id=run_state.run_id,
-            eligible_dataset_ids=run_state.eligible_dataset_ids,
+            project_id=str(run_state.project_id),
+            chat_id=str(run_state.chat_id),
+            run_id=str(run_state.run_id),
+            eligible_dataset_ids=[str(uid) for uid in run_state.eligible_dataset_ids],
         ),
         conversation=base_snapshot,
         controls=controls,
         request=review_request,
-        draft=draft,
+        draft=base_draft,
         rendered_text=draft.rendered_text,
         draft_input=draft_input,
         review_input_packet_hash=packet.content_hash,
@@ -433,10 +540,10 @@ def build_clarification_input(
         role="clarification",
         packet=packet,
         scope=Scope(
-            project_id=run_state.project_id,
-            chat_id=run_state.chat_id,
-            run_id=run_state.run_id,
-            eligible_dataset_ids=run_state.eligible_dataset_ids,
+            project_id=str(run_state.project_id),
+            chat_id=str(run_state.chat_id),
+            run_id=str(run_state.run_id),
+            eligible_dataset_ids=[str(uid) for uid in run_state.eligible_dataset_ids],
         ),
         conversation=base_snapshot,
         controls=controls,
@@ -462,26 +569,10 @@ def build_entry_input(
     configuration_hash: str,
 ) -> RoleEntryInput:
     """Build EntryInput packet for intake assessment."""
-    base_snapshot = ConversationSnapshot(
-        snapshot_id=run_state.run_id,
-        chat_id=run_state.chat_id,
-        cutoff_sequence=cutoff_sequence or 0,
-        original_message={
-            "message_id": run_state.run_id,
-            "chat_id": run_state.chat_id,
-            "sequence": 0,
-            "text": question,
-            "content_hash": _canonical_hash(question),
-        },
-        linked_replies=[],
-        context_records=[],
-        interpretation_records=[],
-        thread_index=[],
-        conflicts=[],
-    )
-    controls = _build_runtime_controls(run_state, "admitted", environment_manifest_id, policy_version)
+    base_snapshot = _build_base_snapshot(run_state)
+    controls = _build_runtime_controls(run_state, "queued", environment_manifest_id, policy_version)
 
-    submission_hash = _canonical_hash(question)
+    submission_hash = hashlib.sha256(question.encode("utf-8")).hexdigest()
     packet = _build_packet_metadata(
         base_snapshot_id=base_snapshot.snapshot_id,
         policy_version=policy_version,

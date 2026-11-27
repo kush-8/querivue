@@ -5,6 +5,7 @@ from .google import GoogleProvider
 from .nvidia import NVIDIAProvider
 from .openrouter import OpenRouterProvider
 from .cloudflare import CloudflareProvider
+from .ollama import OllamaProvider
 
 __all__ = [
     "ModelProvider",
@@ -14,4 +15,5 @@ __all__ = [
     "NVIDIAProvider",
     "OpenRouterProvider",
     "CloudflareProvider",
+    "OllamaProvider",
 ]

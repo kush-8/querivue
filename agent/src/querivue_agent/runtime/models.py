@@ -13,6 +13,7 @@ from querivue_agent.providers.google import GoogleProvider
 from querivue_agent.providers.nvidia import NVIDIAProvider
 from querivue_agent.providers.openrouter import OpenRouterProvider
 from querivue_agent.providers.cloudflare import CloudflareProvider
+from querivue_agent.providers.ollama import OllamaProvider
 
 
 # Configuration constants (from role-prompts-models.md)
@@ -44,6 +45,15 @@ FREE_DEVELOPMENT_CONFIGS = {
         "answer_specialist": "cloudflare",
         "reviewer": "cloudflare",
     },
+    "F4": {
+        "entry_assessor": "ollama",
+        "clarification_agent": "ollama",
+        "supervisor": "ollama",
+        "sql_specialist": "ollama",
+        "python_specialist": "ollama",
+        "answer_specialist": "ollama",
+        "reviewer": "ollama",
+    },
 }
 
 MODEL_ALLOCATIONS = {
@@ -62,13 +72,16 @@ MODEL_ALLOCATIONS = {
     "cloudflare": {
         "all": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
     },
+    "ollama": {
+        "all": "llama3.1:8b",
+    },
 }
 
 
 @dataclass(frozen=True)
 class ModelConfig:
     """Model configuration for a role."""
-    provider: Literal["google", "nvidia", "openrouter", "cloudflare"]
+    provider: Literal["google", "nvidia", "openrouter", "cloudflare", "ollama"]
     model_id: str
     reasoning: Literal["minimal", "low", "medium", "high"] = "low"
     temperature: float = 0.0
@@ -89,7 +102,7 @@ class ModelGateway:
         self._prompt_bundle = load_prompt_bundle_v3()
         self._trace_recorder = trace_recorder
 
-    def _get_provider(self, provider_name: str) -> ModelProvider:
+    def _get_provider(self, provider_name: str, model_id: str | None = None) -> ModelProvider:
         """Get or create a provider instance."""
         if provider_name in self._providers:
             return self._providers[provider_name]
@@ -102,6 +115,8 @@ class ModelGateway:
             provider = OpenRouterProvider()
         elif provider_name == "cloudflare":
             provider = CloudflareProvider()
+        elif provider_name == "ollama":
+            provider = OllamaProvider(model_id=model_id)
         else:
             raise ValueError(f"Unknown provider: {provider_name}")
 
@@ -114,10 +129,16 @@ class ModelGateway:
         if not provider_name:
             raise ValueError(f"No provider configured for role: {role}")
 
-        provider = self._get_provider(provider_name)
         model_id = MODEL_ALLOCATIONS[provider_name].get(role)
         if not model_id:
             model_id = MODEL_ALLOCATIONS[provider_name].get("all", "unknown")
+
+        # For ollama, allow env var override
+        if provider_name == "ollama":
+            import os
+            model_id = os.getenv("OLLAMA_MODEL", model_id)
+
+        provider = self._get_provider(provider_name, model_id)
 
         # Configure inference settings based on role
         if role in ("entry_assessor", "clarification_agent"):
