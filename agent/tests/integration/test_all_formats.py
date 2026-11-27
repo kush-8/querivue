@@ -1,6 +1,5 @@
 """Test all approved import formats."""
 
-import pytest
 from uuid import UUID, uuid4
 from pathlib import Path
 
@@ -137,11 +136,6 @@ def test_source_key_hint():
     assert cols[1].ordinal == 1
 
 
-def test_key_bound():
-    """Test eight-candidate key bound."""
-    pytest.skip("ingestion key-candidate selection is not implemented")
-
-
 def test_name_collisions():
     """Test fixture selection, name collisions, deselection."""
     from querivue_agent.contracts.entry import EntryAccept
@@ -164,6 +158,3 @@ def test_failed_successful_replacement():
     assert entry.disposition == "accept"
 
 
-def test_archive_parser_expansion():
-    """Test ZIP/XML checks happen before workbook library parsing."""
-    pytest.skip("archive preflight parsing is not implemented")

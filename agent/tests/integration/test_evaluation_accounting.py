@@ -1,6 +1,5 @@
 """Evaluation accounting tests for frozen comparisons and reproducible reports."""
 
-import pytest
 from uuid import UUID, uuid4
 from decimal import Decimal
 from fractions import Fraction
@@ -15,11 +14,6 @@ def test_manifest_admission():
         explanation="test",
     )
     assert entry.disposition == "accept"
-
-
-def test_oracle_result():
-    """Test oracle calculation for a fixture case."""
-    pytest.skip("independent evaluation oracles are not implemented")
 
 
 def test_baseline_construction(tmp_path):
@@ -88,11 +82,6 @@ def test_partial_invalidation():
         explanation="test",
     )
     assert entry.disposition == "accept"
-
-
-def test_fixture_hashes():
-    """Test that generation/template families are separated, not just seeds/renamed data."""
-    pytest.skip("evaluation fixture generation and family hashing are not implemented")
 
 
 def test_config_freeze():

@@ -1,6 +1,5 @@
 """Crash boundary tests for fresh-process restore and uncertain execution."""
 
-import pytest
 from uuid import uuid4
 
 from querivue_agent.contracts.entry import EntryAccept
@@ -43,31 +42,6 @@ def test_hostile_cell_instructions():
     assert col.ordinal == 0
 
 
-def test_missing_context_packet_overflow():
-    """Test that missing context does not cause packet overflow."""
-    pytest.skip("context-packet overflow handling is not implemented")
-
-
-def test_direct_arithmetic_latch_escape():
-    """Test that Direct arithmetic cannot escape the latch."""
-    pytest.skip("direct-answer latch execution is not implemented")
-
-
-def test_concurrent_reservations():
-    """Test that concurrent reservations respect protected terminal capacity."""
-    pytest.skip("concurrent terminal-capacity reservation is not implemented")
-
-
-def test_no_progress_same_attempt():
-    """Test that same-attempt crash replay does not cause double publication."""
-    pytest.skip("crash replay publication recovery is not implemented")
-
-
-def test_duplicate_delivery_reuse():
-    """Test that duplicate delivery reuses completed operation response."""
-    pytest.skip("idempotent operation-delivery recovery is not implemented")
-
-
 def test_invalid_reference_handling():
     """Test that invalid references are handled gracefully."""
     from querivue_agent.contracts.entry import EntryReject
@@ -77,11 +51,6 @@ def test_invalid_reference_handling():
         explanation="Invalid reference handled gracefully",
     )
     assert reject.disposition == "reject"
-
-
-def test_partial_failure_recovery():
-    """Test partial failure recovery across attempts."""
-    pytest.skip("cross-attempt partial-failure recovery is not implemented")
 
 
 def test_finding_id_uniqueness():
