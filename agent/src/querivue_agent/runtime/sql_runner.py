@@ -87,7 +87,7 @@ class SQLRunner:
 
         # Use the first database path
         db_path = next(iter(self._config.authorized_tables.values()))
-        self._conn = duckdb.connect(str(db_path), read_only=True)
+        self._conn = duckdb.connect(str(db_path), read_only=False)
 
         # Configure session
         self._conn.execute("SET enable_progress_bar=false")

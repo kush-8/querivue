@@ -1,0 +1,20 @@
+[project]
+name = "querivue-sandbox"
+version = "0.1.0"
+description = "Querivue sandbox guest environment dependencies"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "duckdb==1.0.0",
+    "pyarrow==16.0.0",
+    "pandas==3.1.1",
+    "plotly==7.1.0",
+    "kaleido==1.5.2",
+    "pillow==13.0.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.13.6,<0.14.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+data = { data = "config" }

@@ -437,9 +437,32 @@ def test_no_external_wait_inside_transaction(db_path: Path) -> None:
 
 
 def test_schema_incompatibility_fails_explicitly(db_path: Path) -> None:
-    """Test schema incompatibility fails explicitly."""
-    # Note: Ledger.open() always re-creates missing tables via CREATE TABLE IF NOT EXISTS
-    # So we test a different aspect: foreign key constraint violation fails explicitly
+    """Test that unsupported schema versions are rejected explicitly."""
+    # Create a database with unsupported future schema version
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        "CREATE TABLE schema_version (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)"
+    )
+    conn.execute("INSERT INTO schema_version (version, applied_at) VALUES (999, 'audit')")
+    conn.commit()
+    conn.close()
+
+    # Ledger.open() should reject this database
+    with pytest.raises(RuntimeError) as exc_info:
+        Ledger.open(db_path)
+
+    assert "Unsupported schema version 999" in str(exc_info.value)
+    assert "Only version 1 is supported" in str(exc_info.value)
+
+    # Verify the database was not modified (connection closed, no mutation)
+    conn2 = sqlite3.connect(db_path)
+    version_row = conn2.execute("SELECT version FROM schema_version").fetchone()
+    conn2.close()
+    assert version_row[0] == 999  # Original version preserved
+
+
+def test_foreign_key_violation_fails_explicitly(db_path: Path) -> None:
+    """Test foreign key constraint violation fails explicitly (separate from schema incompatibility)."""
     ops = make_ops(db_path)
     try:
         ops.create_project(V1)
@@ -471,6 +494,21 @@ def test_schema_incompatibility_fails_explicitly(db_path: Path) -> None:
                 conn.commit()
     finally:
         close_ops(ops)
+
+
+def test_empty_schema_version_table_rejected(db_path: Path) -> None:
+    """Test that schema_version table with no rows is rejected."""
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        "CREATE TABLE schema_version (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)"
+    )
+    conn.commit()
+    conn.close()
+
+    with pytest.raises(RuntimeError) as exc_info:
+        Ledger.open(db_path)
+
+    assert "no version row" in str(exc_info.value)
 
 
 def test_two_connection_barrier(db_path: Path) -> None:

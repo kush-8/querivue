@@ -8,8 +8,7 @@ from uuid import UUID, uuid4
 from querivue_agent.contracts.entry import EntryAccept, EntryReject, EntryClarify, EntryAssessment
 from querivue_agent.contracts.inputs import ClarificationInput
 from querivue_agent.contracts.actions import ClarificationAction
-from querivue_agent.contracts.control import ClarificationQuestionReady
-from querivue_agent.contracts.responses import ClarificationOutcome
+from querivue_agent.contracts.responses import ClarificationQuestionReady, ClarificationOutcome
 from querivue_agent.contracts.content import BlockID, ClarificationTarget
 
 

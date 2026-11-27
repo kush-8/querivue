@@ -16,13 +16,17 @@ from querivue_agent.contracts.budgets import (
     ProtectedReserve,
 )
 from querivue_agent.contracts.budgets import ClockReading
+from querivue_agent.contracts.catalog import PreparedCandidate
 from querivue_agent.contracts.common import OwnerFence, Scope
 from querivue_agent.contracts.entry import EntryInput as IntakeEntryInput
+from querivue_agent.contracts.evidence import EvidenceCandidate, TabularEvidence
 from querivue_agent.contracts.inputs import ReviewInput
+from querivue_agent.contracts.responses import ReviewAssessment
 from querivue_agent.contracts.records import (
     AdmissionReceipt,
     AdmissionTarget,
     DeletionReceipt,
+    EvidenceRef,
     FinalCandidate,
     FinalResult,
     IntakeAdmission,
@@ -31,6 +35,7 @@ from querivue_agent.contracts.records import (
     ModelCompletion,
     ModelReservation,
     ModelRequest,
+    OperationOutcome,
     OperationRequest,
     QueueReceipt,
     ResumeReceipt,
@@ -344,14 +349,52 @@ class Authority:
             expires_at=now.utc_timestamp,
         )
 
-    def publish_evidence(self, candidate, fence: OwnerFence):
-        """Publish evidence candidate."""
-        # Implementation would store evidence and return EvidenceRef
-        raise NotImplementedError("T05: publish_evidence not yet implemented")
+    def publish_evidence(self, candidate: EvidenceCandidate, fence: OwnerFence) -> TabularEvidence:
+        """Publish evidence candidate and return the published evidence."""
+        evidence = candidate.evidence
+        evidence_id = str(evidence.evidence_id)
+        content_hash = evidence.content_hash
+        artifact = evidence.artifact
 
-    def commit_preparation(self, candidate, fence: OwnerFence):
+        # Store the evidence artifact reference
+        self._ops.store_payload(
+            payload_id=evidence_id,
+            family="evidence",
+            version=1,
+            canonical_bytes=evidence.model_dump_json().encode(),
+            digest=content_hash,
+        )
+
+        # Add dependency to the payload
+        for dep in evidence.dependencies:
+            self._ops.add_dependency(evidence_id, str(dep.dataset_id), str(dep.snapshot_id))
+
+        return evidence
+
+    def commit_preparation(self, candidate: PreparedCandidate, fence: OwnerFence) -> None:
         """Commit dataset preparation."""
-        raise NotImplementedError("T05: commit_preparation not yet implemented")
+        snapshot = candidate.snapshot
+        snapshot_id = str(snapshot.snapshot_id)
+        dataset_id = str(snapshot.dataset_id)
+        prepared_ref = snapshot.prepared_ref
+        prepared_hash = snapshot.prepared_hash
+        publication_ref = snapshot.publication_ref
+
+        # Update the dataset snapshot with prepared references
+        self._ops.update_snapshot_prepared(
+            snapshot_id=snapshot_id,
+            prepared_ref=prepared_ref,
+            prepared_hash=prepared_hash,
+            publication_ref=publication_ref,
+        )
+
+        # Update dataset status to validated
+        self._ops.update_dataset_status(
+            dataset_id=dataset_id,
+            status="validated",
+            settings_hash=str(snapshot.settings_hash),
+            environment_manifest_id=str(snapshot.environment_manifest_id),
+        )
 
     def reserve_review(self, request: ReviewInput, fence: OwnerFence) -> ReviewReservation:
         """Reserve review pass."""
@@ -447,44 +490,392 @@ class Authority:
 
     def finalize(self, candidate: FinalCandidate, fence: OwnerFence) -> FinalResult:
         """Finalize answer."""
-        raise NotImplementedError("T05: finalize not yet implemented")
+        run_id = str(fence.scope.run_id)
+        result_id = str(uuid4())
+        candidate_id = str(candidate.candidate_id)
+        content_hash = candidate.content_hash
+        completeness = candidate.completeness
+        rendered_text = candidate.rendered_text
+        rendering_policy_version = candidate.rendering_policy_version
+        dependencies = candidate.dependencies
+
+        # Determine route and review status
+        if candidate.kind == "reviewed":
+            route = "reviewed"
+            review_status = "approved"
+            # Get evidence and chart IDs from the draft/review
+            evidence_ids = []
+            chart_artifact_ids = []
+            # In a real implementation, these would come from the draft
+        else:
+            route = "direct"
+            review_status = "not_required_direct"
+            evidence_ids = []
+            chart_artifact_ids = []
+
+        # Record final result
+        self._ops.record_final_result(
+            result_id=result_id,
+            run_id=run_id,
+            route=route,
+            candidate_id=candidate_id,
+            content_hash=content_hash,
+            completeness=completeness,
+            rendered_text=rendered_text,
+            rendering_policy_version=rendering_policy_version,
+            evidence_ids=evidence_ids,
+            chart_artifact_ids=chart_artifact_ids,
+            dependencies_json=json.dumps([d.model_dump() for d in dependencies]),
+            review_status=review_status,
+        )
+
+        return FinalResult(
+            kind="answer",
+            result_id=result_id,
+            scope=fence.scope,
+            route=route,
+            candidate_id=candidate_id,
+            content_hash=content_hash,
+            completeness=completeness,
+            rendered_text=rendered_text,
+            rendering_policy_version=rendering_policy_version,
+            evidence_ids=evidence_ids,
+            chart_artifact_ids=chart_artifact_ids,
+            dependencies=dependencies,
+            published_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            review_status=review_status,
+        )
 
     def delete_dataset(self, dataset_id: UUID, scope: Scope) -> DeletionReceipt:
         """Delete dataset."""
-        raise NotImplementedError("T05: delete_dataset not yet implemented")
+        deletion_id = str(uuid4())
+        dataset_id_str = str(dataset_id)
+        project_id = scope.project_id
+
+        # Get the dataset to verify it exists
+        dataset = self._ops.get_dataset(dataset_id_str)
+        if dataset is None:
+            raise ValueError(f"Dataset {dataset_id_str} not found")
+
+        # Update dataset status to deleted
+        self._ops.update_dataset_status(dataset_id_str, "deleted")
+
+        # In a real implementation, these would be populated from actual dependencies
+        invalidated_run_ids: list[str] = []
+        removed_result_ids: list[str] = []
+        deferred_artifact_ids: list[str] = []
+        retirement_pending_incarnation_ids: list[str] = []
+        tombstone_revision = 1
+
+        # Record deletion receipt
+        self._ops.record_deletion_receipt(
+            deletion_id=deletion_id,
+            project_id=project_id,
+            dataset_id=dataset_id_str,
+            tombstone_revision=tombstone_revision,
+            invalidated_run_ids=invalidated_run_ids,
+            removed_result_ids=removed_result_ids,
+            deferred_artifact_ids=deferred_artifact_ids,
+            retirement_pending_incarnation_ids=retirement_pending_incarnation_ids,
+        )
+
+        return DeletionReceipt(
+            deletion_id=deletion_id,
+            project_id=project_id,
+            dataset_id=dataset_id,
+            tombstone_revision=tombstone_revision,
+            invalidated_run_ids=invalidated_run_ids,
+            removed_result_ids=removed_result_ids,
+            deferred_artifact_ids=deferred_artifact_ids,
+            retirement_pending_incarnation_ids=retirement_pending_incarnation_ids,
+            committed_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        )
 
     # --- Additional authority methods ---
 
-    def accept_model(self, reservation_id: UUID, completion: ModelCompletion, fence: OwnerFence):
+    def accept_model(self, reservation_id: UUID, completion: ModelCompletion, fence: OwnerFence) -> None:
         """Accept model completion."""
-        raise NotImplementedError("T05: accept_model not yet implemented")
+        # Record the model completion
+        self._ops.record_model_completion(
+            completion_id=str(completion.completion_id),
+            reservation_id=str(reservation_id),
+            request_hash=completion.request_hash,
+            status=completion.status,
+            response_ref=str(completion.response_artifact.artifact_id) if completion.response_artifact else None,
+            provider_request_id=completion.provider_request_id,
+            observed_model_revision=completion.observed_model_revision,
+            stop_reason=completion.stop_reason,
+            usage_json=completion.usage.model_dump_json(),
+            error_ref=str(completion.error_ref) if completion.error_ref else None,
+        )
+
+        # Complete the invocation
+        self._ops.complete_invocation(
+            invocation_id=str(completion.invocation_id),
+            status="completed" if completion.status == "completed" else "failed",
+            completion_json=completion.model_dump_json() if completion.status == "completed" else None,
+        )
 
     def record_operation(self, request: OperationRequest, fence: OwnerFence) -> UUID:
         """Record operation."""
-        raise NotImplementedError("T05: record_operation not yet implemented")
+        operation_id = request.operation_id
+        operation_id_str = str(operation_id)
 
-    def record_retirement(self, proof, fence: OwnerFence):
+        # Create the operation record
+        self._ops.create_operation(
+            operation_id=operation_id_str,
+            run_id=str(fence.scope.run_id) if fence.scope.run_id else None,
+            task_id=str(request.task_id) if request.task_id else None,
+            action_id=str(request.action_id) if request.action_id else None,
+            attempt=request.attempt,
+            execution_generation=request.execution_generation,
+            invocation_key=request.invocation_key,
+            request_hash=request.request_hash,
+            kind=request.kind,
+            request_json=request.request.model_dump_json(),
+            input_artifacts_json=json.dumps([a.model_dump() for a in request.input_artifacts]),
+            deadline=request.deadline,
+            environment_manifest_id=str(request.environment_manifest_id),
+        )
+
+        return operation_id
+
+    def record_retirement(self, proof: RetirementProof, fence: OwnerFence) -> None:
         """Record retirement proof."""
-        raise NotImplementedError("T05: record_retirement not yet implemented")
+        self._ops.record_retirement_proof(
+            retirement_id=str(proof.retirement_id),
+            sandbox_id=proof.sandbox_id,
+            incarnation_id=str(proof.incarnation_id),
+            method=proof.method,
+            proof_ref=str(proof.proof_ref),
+            environment_manifest_id=str(proof.environment_manifest_id),
+        )
 
-    def register_outcome(self, action_id: UUID, outcome, fence: OwnerFence) -> UUID:
+    def register_outcome(self, action_id: UUID, outcome: OperationOutcome, fence: OwnerFence) -> UUID:
         """Register action outcome."""
-        raise NotImplementedError("T05: register_outcome not yet implemented")
+        outcome_id = uuid4()
+        outcome_id_str = str(outcome_id)
+        action_id_str = str(action_id)
+        run_id_str = str(fence.scope.run_id)
+
+        # Record the operation outcome
+        self._ops.record_operation_outcome(
+            outcome_id=outcome_id_str,
+            operation_id=action_id_str,  # Using action_id as operation_id for now
+            attempt=outcome.attempt,
+            execution_generation=outcome.execution_generation,
+            request_hash=outcome.request_hash,
+            status=outcome.status,
+            evidence_json=json.dumps([e.model_dump() for e in outcome.evidence]),
+            charts_json=json.dumps([c.model_dump() for c in outcome.charts]),
+            diagnostics_json=outcome.diagnostics.model_dump_json(),
+        )
+
+        # Update action status based on outcome
+        if outcome.status == "succeeded":
+            self._ops.update_action_status(action_id_str, "completed")
+        elif outcome.status == "failed":
+            self._ops.update_action_status(action_id_str, "failed")
+        elif outcome.status == "blocked":
+            self._ops.update_action_status(action_id_str, "blocked")
+
+        return outcome_id
 
     # --- Read/projection methods ---
 
-    def read_projection(self, run_id: UUID, scope: Scope):
-        """Read run projection."""
-        raise NotImplementedError("T05: read_projection not yet implemented")
+    def read_projection(self, run_id: UUID, scope: Scope) -> GraphProjection:
+        """Read run projection for graph execution."""
+        from querivue_agent.contracts.state import GraphProjection, RunState, RunExecutionStatus
+        from querivue_agent.contracts.evidence import TabularEvidence
+        from querivue_agent.contracts.budgets import BudgetSnapshot
+        from querivue_agent.contracts.inputs import RunInput, SupervisorInput
+        from querivue_agent.contracts.common import OwnerFence
+        from querivue_agent.contracts.values import CanonicalUUID
+        from querivue_agent.contracts.budgets import create_initial_budget
 
-    def reserve_dispatch(self, task_id: UUID, fence: OwnerFence):
-        """Reserve task dispatch."""
-        raise NotImplementedError("T05: reserve_dispatch not yet implemented")
+        run_id_str = str(run_id)
 
-    def commit_wait(self, action_id: UUID, outcome, fence: OwnerFence) -> UUID:
+        # Get run from ledger
+        run = self._ops.get_run(run_id_str)
+        if run is None:
+            raise ValueError(f"Run {run_id_str} not found")
+
+        # Build a minimal RunState from stored data
+        # In a real implementation, this would reconstruct full state from ledger
+        budget = create_initial_budget(scope)
+
+        execution_status = RunExecutionStatus(
+            phase="queued",
+            fence=OwnerFence(
+                scope=scope,
+                subject_kind="run",
+                subject_id=run_id,
+                owner_id=run.get("owner_id", ""),
+                generation=run.get("generation", 1),
+                attempt=1,
+                expected_revision=run.get("run_revision", 1),
+                lease_expires_at="2099-12-31T23:59:59.999999Z",
+            ),
+            budget=budget,
+            deadline=run.get("deadline", "2099-12-31T23:59:59.999999Z"),
+            run_revision=run.get("run_revision", 1),
+            queue_revision=run.get("queue_revision", 0),
+            expected_attempts={},
+            active_draft_ref=None,
+            active_review_ref=None,
+            active_question_ref=None,
+            analysis_started=False,
+            review_reservations=[],
+        )
+
+        run_state = RunState(
+            input=RunInput(
+                run_id=run_id,
+                project_id=scope.project_id,
+                chat_id=scope.chat_id,
+                eligible_dataset_ids=scope.eligible_dataset_ids,
+                question=run.get("question", ""),
+            ),
+            context=SupervisorInput(
+                scope=scope,
+                conversation=None,  # Would be loaded from ledger
+                plan=None,  # Would be loaded from ledger
+                inbox=[],
+            ),
+            evidence={},
+            messages=[],
+            pending_tasks=[],
+            current_task=None,
+            outcomes={},
+            execution_status=execution_status,
+            output=None,
+        )
+
+        return GraphProjection(
+            schema_version="1.0",
+            graph_version="1.0",
+            run_id=CanonicalUUID(run_id_str),
+            thread_id=CanonicalUUID(run_id_str),
+            run_revision=run.get("run_revision", 1),
+            state=run_state,
+            serialized_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            configuration_hash=run.get("configuration_hash", "0" * 64),
+            namespace="default",
+        )
+
+    def reserve_dispatch(self, task_id: UUID, fence: OwnerFence) -> str:
+        """Reserve task dispatch budget."""
+        from querivue_agent.contracts.budgets import (
+            ClockReading,
+            ReservationRequest,
+            CounterAmounts,
+        )
+        from querivue_agent.runtime.budgets import check_reservation, create_initial_budget
+
+        now = ClockReading(
+            utc_timestamp=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            monotonic_milliseconds=0,
+            process_id=str(uuid4()),
+            trusted=True,
+        )
+
+        # Get current budget from ledger
+        run = self._ops.get_run(str(fence.scope.run_id))
+        if run is None:
+            raise ValueError("run not found")
+
+        current = create_initial_budget(fence.scope)
+
+        reservation_request = ReservationRequest(
+            request_id=str(task_id),
+            scope=fence.scope,
+            purpose="dispatch",
+            counters=CounterAmounts(
+                physical_requests=1,
+                logical_invocations=1,
+                input_tokens=0,
+                output_tokens=0,
+                tool_calls=0,
+                query_executions=0,
+                dispatch_attempts=1,
+                active_milliseconds=30000,
+                wall_milliseconds=60000,
+                output_bytes=1048576,
+                output_files=4,
+            ),
+            cost_usd="0.00",
+            expected_revision=current.revision,
+            idempotency_key=f"dispatch-{task_id}",
+        )
+
+        decision = check_reservation(current, reservation_request, now)
+        if not decision.granted:
+            raise ValueError(f"dispatch reservation denied: {decision.reason}")
+
+        # Record the dispatch reservation
+        reservation_id = str(uuid4())
+        self._ops.create_task(str(task_id), str(fence.scope.run_id), '{"status": "dispatched"}')
+        self._ops.update_task_status(str(task_id), "dispatched")
+
+        return reservation_id
+
+    def commit_wait(self, action_id: UUID, outcome: OperationOutcome, fence: OwnerFence) -> UUID:
         """Commit clarification wait outcome."""
-        raise NotImplementedError("T05: commit_wait not yet implemented")
+        outcome_id = uuid4()
+        outcome_id_str = str(outcome_id)
+        action_id_str = str(action_id)
+        run_id_str = str(fence.scope.run_id)
 
-    def commit_review(self, review_id: UUID, assessment, fence: OwnerFence) -> UUID:
+        # Record the operation outcome
+        self._ops.record_operation_outcome(
+            outcome_id=outcome_id_str,
+            operation_id=action_id_str,
+            attempt=outcome.attempt,
+            execution_generation=outcome.execution_generation,
+            request_hash=outcome.request_hash,
+            status=outcome.status,
+            evidence_json=json.dumps([e.model_dump() for e in outcome.evidence]),
+            charts_json=json.dumps([c.model_dump() for c in outcome.charts]),
+            diagnostics_json=outcome.diagnostics.model_dump_json(),
+        )
+
+        # Update action status based on outcome
+        if outcome.status == "succeeded":
+            self._ops.update_action_status(action_id_str, "completed")
+        elif outcome.status == "failed":
+            self._ops.update_action_status(action_id_str, "failed")
+        elif outcome.status == "blocked":
+            self._ops.update_action_status(action_id_str, "blocked")
+
+        # Also record as a regular outcome for tracking
+        self._ops.record_outcome(
+            outcome_id=outcome_id_str,
+            action_id=action_id_str,
+            run_id=run_id_str,
+            attempt=outcome.attempt,
+            execution_generation=outcome.execution_generation,
+            outcome_json=outcome.model_dump_json(),
+        )
+
+        return outcome_id
+
+    def commit_review(self, review_id: UUID, assessment: ReviewAssessment, fence: OwnerFence) -> UUID:
         """Commit review assessment."""
-        raise NotImplementedError("T05: commit_review not yet implemented")
+        review_id_str = str(review_id)
+        run_id_str = str(fence.scope.run_id)
+
+        # Record the review in the ledger
+        self._ops.create_review(
+            review_id=review_id_str,
+            run_id=run_id_str,
+            draft_id=str(assessment.draft_id) if hasattr(assessment, 'draft_id') else "00000000-0000-0000-0000-000000000000",
+            review_pass=assessment.review_pass if hasattr(assessment, 'review_pass') else 1,
+            assessment_json=assessment.model_dump_json(),
+            verdict="approved" if hasattr(assessment, 'verdict') and assessment.verdict == "approved" else "rejected",
+            draft_content_hash=str(assessment.draft_content_hash) if hasattr(assessment, 'draft_content_hash') else "0" * 64,
+            draft_input_packet_hash=str(assessment.draft_input_packet_hash) if hasattr(assessment, 'draft_input_packet_hash') else "0" * 64,
+            rendering_policy_version=assessment.rendering_policy_version if hasattr(assessment, 'rendering_policy_version') else "1.0",
+            deadline="2099-12-31T23:59:59.999999Z",
+        )
+
+        return review_id

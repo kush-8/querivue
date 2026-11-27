@@ -23,6 +23,10 @@ from .preparation import (
     PreparedSnapshot,
     PreparationError,
 )
+from .controller import (
+    inspect_upload_controller,
+    prepare_dataset_controller,
+)
 
 __all__ = [
     "ImportSettings",
@@ -44,4 +48,6 @@ __all__ = [
     "PreparationAttempt",
     "PreparedSnapshot",
     "PreparationError",
+    "inspect_upload_controller",
+    "prepare_dataset_controller",
 ]

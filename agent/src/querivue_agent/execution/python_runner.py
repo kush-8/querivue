@@ -10,9 +10,10 @@ import shutil
 import tempfile
 import uuid
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pyarrow.parquet as pq
 
@@ -66,9 +67,25 @@ class PythonRunner:
 
     async def start(self) -> None:
         """Initialize sandbox ticket."""
-        raise NotImplementedError(
-            "Python execution is unavailable: SandboxController does not yet "
-            "implement ticket admission and operation publication"
+        # Create a sandbox ticket for this runner
+        from querivue_agent.contracts.records import SandboxTicket
+        from querivue_agent.contracts.values import CanonicalUUID, RuntimeUUID
+
+        ticket_id = str(uuid4())
+        self._ticket = SandboxTicket(
+            ticket_id=RuntimeUUID(ticket_id),
+            scope=self._config.scope,
+            sandbox_id=f"sandbox-{self._config.sandbox_id}",
+            command_id=f"python-{self._config.action_id}",
+            incarnation_id=RuntimeUUID(str(uuid4())),
+            action_id=CanonicalUUID(str(self._config.action_id)),
+            operation_id=None,
+            attempt=self._config.attempt,
+            generation=self._config.runner_nonce,
+            environment_manifest_id=CanonicalUUID("00000000-0000-0000-0000-000000000000"),
+            state="prepared",
+            created_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            expires_at="2099-12-31T23:59:59.999999Z",
         )
 
     async def execute_python(

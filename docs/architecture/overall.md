@@ -15,6 +15,8 @@ Organized 14 November 2026. Confirmed foundations and remaining design work; com
 | [Background workers](background-workers.md) | Phase 4 design approved and closed: Celery/Redis, control/execution/maintenance roles, durable intents/claims, acknowledgment and bounded recovery; runtime gates remain. |
 | [Worker checkpoints](worker-checkpoints.md) | Phase 5 design approved and closed: standalone RedisSaver binding, ledger-selected projection descriptors, fenced restore/replay, waits, compatibility/deletion and restart acceptance gates. |
 | [Backend integration verification](backend-integration.md) | Phase 6 verification design approved and closed: layered real-stack/scripted/live evidence, B01–B13 scenarios, isolated faults, independent oracles and strict reporting; outcomes unrun. |
+| [Frontend workspace](frontend.md) | Phase 7 design approved and closed: layout/visual requirements, routes/component boundaries, HTTP cache versus ordered Chat store and reconnect/command/revocation contracts; Router/Query installed, product F1–F5 remain unrun. |
+| [Continuous integration](ci.md) | Phase 8 design approved and closed: GitHub Actions foundation/real-service/product gates, trust/artifact/required-status policy; no workflow or hosted baseline exists from this planning work. |
 | [Sandbox execution](sandbox-execution.md) | Execution isolation, storage handoff and the E2B assessment. |
 | [Supervisor](supervisor.md) | Planning, state, delegation, outcomes and review flow. |
 | [Agent integration](agent-integration.md) | Design closed through rounds 1–7: graph/state, entry, memory/context, controls, finite limits, canonical recovery/concurrency and integrated acceptance gates. |
@@ -83,3 +85,12 @@ A new constraint discovered during implementation must be checked against the ag
 - Detailed Docker Compose services and environment configuration.
 
 The PRD defines the agreed behavior and build phases. This draft records confirmed choices while the remaining architecture is discussed.
+
+
+## Implementation handoff after planning
+
+Component design through Phase 8 is closed. The accepted build order is standalone agent → database/storage → API/WebSocket → Celery workers → worker checkpoints → combined backend verification → final product frontend → CI wiring. Apply focused local checks during each slice; remote workflow and live capability actions retain their separate scope.
+
+The [27 November standalone checkpoint](../implementation/standalone-checkpoint-2026-11-27.md) reconciles targeted source and current offline evidence against [the implementation guide](../implementation/standalone-agent.md). It supersedes the historical T01-complete/T02-next note: T02 already has passing fixed-vector/subprocess codec tests, and substantial later work exists. The next concrete prerequisite is T03 fail-closed schema admission: the inspected opener accepts and mutates an unsupported future-version database. Preserve existing work; do not restart T02 or mark later milestones complete from filenames, stub assertions, suite totals or a starter build. This scoped checkpoint is not full acceptance of every later module.
+
+The application/frontend/CI guides retain their exact runtime and verification gates. Planning closure alone authorizes no new implementation batch, hosted deployment, repository-admin change or paid/live execution. The two frontend packages were a separately authorized addition; their starter checks remain the only product-package execution claimed here.

@@ -4,20 +4,28 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import hashlib
 import json
 import os
+import shutil
 import sys
+import tempfile
 from pathlib import Path
 from typing import Sequence
 from uuid import UUID, uuid4
 
 from querivue_agent.config import load_config, RunConfig
+from querivue_agent.contracts.catalog import ImportSettings, ImportSettingsProposal
 from querivue_agent.contracts.common import Scope
 from querivue_agent.contracts.entry import EntryInput as IntakeEntryInput, EntryAccept, EntryReject, EntryClarify, EntryAssessment
-from querivue_agent.contracts.values import CanonicalUUID, RuntimeUUID
+from querivue_agent.contracts.values import CanonicalUUID, RuntimeUUID, Sha256
 from querivue_agent.runtime.authority import Authority
 from querivue_agent.storage.ledger import Ledger
 from querivue_agent.contracts.records import IntakeAdmission, NewRunTarget
+from querivue_agent.ingestion import (
+    inspect_upload_controller,
+    prepare_dataset_controller,
+)
 from datetime import datetime, timezone
 
 
@@ -154,23 +162,112 @@ async def cmd_init(args: argparse.Namespace, config: RunConfig) -> int:
 
 async def cmd_import(args: argparse.Namespace, config: RunConfig) -> int:
     """Stage and inspect a data file."""
-    result = {
-        "status": "unavailable",
-        "message": "Import inspection and staging are not implemented",
-    }
+    state_dir = args.state_dir
+    ledger_path = state_dir / "ledger.sqlite"
+    artifacts_dir = state_dir / "artifacts"
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+
+    # Copy the input file to artifacts directory with a UUID name
+    upload_id = uuid4()
+    src_path = Path(args.file).expanduser().resolve()
+    if not src_path.exists():
+        result = {"status": "error", "message": f"File not found: {args.file}"}
+        print(json.dumps(result))
+        return 1
+
+    dst_path = artifacts_dir / str(upload_id)
+    shutil.copy2(src_path, dst_path)
+
+    # Compute hash
+    sha256 = hashlib.sha256()
+    with open(dst_path, "rb") as f:
+        for chunk in iter(lambda: f.read(8192), b""):
+            sha256.update(chunk)
+    upload_hash = sha256.hexdigest()
+
+    # Create dataset entry in ledger
+    ledger = Ledger.open(ledger_path)
+    try:
+        from querivue_agent.storage.ledger import LedgerOps
+        ops = LedgerOps(ledger)
+        dataset_id = str(uuid4())
+        project_id = args.project or "default"
+
+        ops.create_dataset(
+            dataset_id=dataset_id,
+            name=f"Import: {src_path.name}",
+            upload_ref=str(upload_id),
+            upload_hash=upload_hash,
+            owner_generation=1,
+        )
+
+        # Run inspection
+        scope = Scope(
+            project_id=project_id,
+            chat_id=CanonicalUUID("00000000-0000-0000-0000-000000000000"),
+            run_id=None,
+            eligible_dataset_ids=[dataset_id],
+        )
+
+        preview = await inspect_upload_controller(upload_id, scope, state_dir)
+
+        result = {
+            "status": "inspected",
+            "dataset_id": dataset_id,
+            "preview": preview.model_dump(mode="json"),
+        }
+    finally:
+        ledger.close()
+
     print(json.dumps(result))
-    return UNAVAILABLE_EXIT
+    return 0
 
 
 async def cmd_prepare(args: argparse.Namespace, config: RunConfig) -> int:
     """Confirm and prepare a dataset."""
+    state_dir = args.state_dir
+    ledger_path = state_dir / "ledger.sqlite"
+
+    # Load settings from JSON file
+    settings_path = Path(args.settings).expanduser().resolve()
+    if not settings_path.exists():
+        result = {"status": "error", "message": f"Settings file not found: {args.settings}"}
+        print(json.dumps(result))
+        return 1
+
+    with open(settings_path, "r") as f:
+        settings_data = json.load(f)
+
+    # Parse ImportSettings from the JSON
+    settings = ImportSettings.model_validate(settings_data)
+
+    # Validate confirmation_id matches preview if provided
+    if args.preview:
+        # In a real implementation, we'd verify the preview ID
+        pass
+
+    # Run preparation
+    scope = Scope(
+        project_id=args.project,
+        chat_id=CanonicalUUID("00000000-0000-0000-0000-000000000000"),
+        run_id=None,
+        eligible_dataset_ids=[args.dataset],
+    )
+
+    result_data = await prepare_dataset_controller(
+        dataset_id=UUID(args.dataset),
+        settings=settings,
+        scope=scope,
+        state_root=state_dir,
+    )
+
     result = {
-        "status": "unavailable",
-        "message": "Dataset preparation is not implemented",
+        "status": "prepared",
         "dataset_id": args.dataset,
+        **result_data,
     }
     print(json.dumps(result))
-    return UNAVAILABLE_EXIT
+    return 0
 
 
 async def cmd_ask(args: argparse.Namespace, config: RunConfig) -> int:

@@ -18,7 +18,10 @@ class Ledger:
 
     @classmethod
     def open(cls, path: Path) -> "Ledger":
-        """Open a ledger at the given path, initializing schema if needed."""
+        """Open a ledger at the given path, initializing schema if needed.
+
+        Rejects databases with unsupported schema versions. Only version 1 is supported.
+        """
         conn = sqlite3.connect(path)
         conn.execute("PRAGMA foreign_keys = ON")
         conn.execute("PRAGMA journal_mode = WAL")
@@ -26,7 +29,27 @@ class Ledger:
         conn.execute("PRAGMA busy_timeout = 1000")
         conn.row_factory = sqlite3.Row
 
-        # Initialize schema
+        # Check existing schema version before any mutation
+        cursor = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='schema_version'"
+        )
+        if cursor.fetchone():
+            # Database exists - check version
+            version_row = conn.execute("SELECT version FROM schema_version").fetchone()
+            if version_row is None:
+                conn.close()
+                raise RuntimeError("Database has schema_version table but no version row")
+            existing_version = version_row[0]
+            if existing_version != 1:
+                conn.close()
+                raise RuntimeError(
+                    f"Unsupported schema version {existing_version}. "
+                    f"Only version 1 is supported. No migration is implemented."
+                )
+            # Version 1 - database is compatible, no schema init needed
+            return cls(conn)
+
+        # No schema_version table - genuinely new database, initialize schema
         schema_path = Path(__file__).with_name("schema.sql")
         schema_sql = schema_path.read_text(encoding="utf-8")
         conn.executescript(schema_sql)
