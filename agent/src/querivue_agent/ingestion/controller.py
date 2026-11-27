@@ -361,13 +361,18 @@ async def prepare_dataset_controller(
             # Verify the artifact
             artifact_store.verify(staged, result.snapshot.artifact_sha256)
 
-            # Update attempt with publication reference
+            # Update attempt with publication reference (critical commit point)
             ops.update_preparation_attempt(
                 str(attempt_id),
                 phase="validated",
                 candidate_ref=str(result.snapshot.snapshot_id) if result.snapshot else None,
                 publication_ref=staged.artifact.storage_ref,
             )
+
+            # Only clean up work directory after successful ledger update
+            import shutil
+            if work_path.exists():
+                shutil.rmtree(work_path)
 
             # Return prepared candidate info
             return {
@@ -379,10 +384,9 @@ async def prepare_dataset_controller(
                 "artifact_ref": staged.artifact.storage_ref,
                 "artifact_sha256": staged.artifact.sha256,
             }
-        finally:
-            # Clean up work directory
-            import shutil
-            if work_path.exists():
-                shutil.rmtree(work_path)
+        except Exception:
+            # On any failure, preserve work directory for debugging
+            # Cleanup will be handled by a separate process or on next attempt
+            raise
     finally:
         ledger.close()

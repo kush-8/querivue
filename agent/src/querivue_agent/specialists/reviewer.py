@@ -10,7 +10,7 @@ from querivue_agent.contracts.inputs import ReviewInput
 from querivue_agent.contracts.responses import ReviewAssessment
 from querivue_agent.runtime.reviewer import ReviewerEngine, ReviewRequest
 from querivue_agent.runtime.prompts import load_prompt
-from querivue_agent.runtime.wrappers import WrapperContext
+from querivue_agent.runtime.context import WrapperContext
 
 if TYPE_CHECKING:
     from querivue_agent.runtime.models import ModelGateway

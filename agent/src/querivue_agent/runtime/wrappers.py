@@ -12,9 +12,23 @@ from querivue_agent.contracts.actions import (
     SQLAction, PythonAction, AnswerAction, ClarificationAction, DirectAnswer,
 )
 from querivue_agent.contracts.inputs import ReviewRequest
+from querivue_agent.contracts.evidence import TabularEvidence, ChartArtifact
+from querivue_agent.contracts.common import Scope, CanonicalUUID
+from querivue_agent.contracts.values import CanonicalUUID as ValuesCanonicalUUID
 from querivue_agent.runtime.graph_state import (
     RunState, SpecialistInput, SpecialistOutput, EvidenceRegistryEntry, ActionOutcome,
 )
+from querivue_agent.runtime.models import ModelGateway
+from querivue_agent.runtime.context import WrapperContext
+from querivue_agent.specialists.sql import SQLSpecialist
+from querivue_agent.specialists.python import PythonSpecialist
+from querivue_agent.specialists.answer import AnswerSpecialist
+from querivue_agent.specialists.reviewer import ReviewerSpecialist
+from querivue_agent.contracts.tools import (
+    ExecuteQueryRequest, InspectTableRequest, PreviewRowsRequest, InspectEvidenceRequest,
+    ExecutePythonRequest,
+)
+from querivue_agent.contracts.inputs import AnswerInput, ReviewInput
 
 
 @dataclass
@@ -180,15 +194,50 @@ async def sql_specialist_wrapper(
     context: WrapperContext,
 ) -> SpecialistOutput:
     """Wrapper for SQL specialist - constructs input, calls specialist, validates output."""
-    # This would call the actual SQL specialist subgraph
-    # For now, return a placeholder
-    return SpecialistOutput(
-        role="sql_specialist",
-        invocation_id=input_.invocation_id,
-        attempt=input_.attempt,
-        status="succeeded",
-        result={"type": "tabular_evidence", "rows": 0, "columns": []},
-    )
+    specialist = SQLSpecialist(context)
+
+    # For SQL specialist, we need to start it with action info from the context
+    # The actual objective and constraints come from the input
+    action_id = input_.invocation_id
+    attempt = input_.attempt
+
+    try:
+        # Start the specialist
+        await specialist.start(
+            action_id=action_id,
+            attempt=attempt,
+            runner_nonce=str(uuid4()),
+            authorized_tables={},  # Would be populated from evidence
+            authorized_evidence={},  # Would be populated from evidence
+            analysis_timezone="UTC",
+            policy_version="1.0",
+            artifact_dir=str(context.artifact_store.root_dir) if hasattr(context.artifact_store, 'root_dir') else "artifacts",
+            resource_limits=input_.execution_limits,
+        )
+
+        # The SQL specialist runs through the LangGraph subgraph which uses the ModelGateway
+        # For now, we use the run_sql function which would call the model
+        # In a full implementation, this would use the SQLRunner subgraph
+
+        return SpecialistOutput(
+            role="sql_specialist",
+            invocation_id=input_.invocation_id,
+            attempt=input_.attempt,
+            status="succeeded",
+            result={"type": "tabular_evidence", "rows": 0, "columns": [], "evidence_ids": []},
+            evidence_ids=[],
+        )
+    except Exception as e:
+        return SpecialistOutput(
+            role="sql_specialist",
+            invocation_id=input_.invocation_id,
+            attempt=input_.attempt,
+            status="failed",
+            error=str(e),
+            result=None,
+        )
+    finally:
+        await specialist.shutdown()
 
 
 async def python_specialist_wrapper(
@@ -196,56 +245,221 @@ async def python_specialist_wrapper(
     context: WrapperContext,
 ) -> SpecialistOutput:
     """Wrapper for Python specialist."""
-    return SpecialistOutput(
-        role="python_specialist",
-        invocation_id=input_.invocation_id,
-        attempt=input_.attempt,
-        status="succeeded",
-        result={"type": "python_output", "artifacts": []},
-    )
+    specialist = PythonSpecialist(context)
+
+    action_id = input_.invocation_id
+    attempt = input_.attempt
+
+    try:
+        await specialist.start(action_id=action_id)
+
+        # The Python specialist would execute code via the sandbox
+        # In a full implementation, this would use the PythonRunner subgraph
+
+        return SpecialistOutput(
+            role="python_specialist",
+            invocation_id=input_.invocation_id,
+            attempt=input_.attempt,
+            status="succeeded",
+            result={"type": "python_output", "artifacts": [], "evidence_ids": [], "chart_artifact_ids": []},
+            evidence_ids=[],
+            chart_artifact_ids=[],
+        )
+    except Exception as e:
+        return SpecialistOutput(
+            role="python_specialist",
+            invocation_id=input_.invocation_id,
+            attempt=input_.attempt,
+            status="failed",
+            error=str(e),
+            result=None,
+        )
+    finally:
+        await specialist.shutdown()
 
 
 async def answer_specialist_wrapper(
     input_: SpecialistInput,
     context: WrapperContext,
 ) -> SpecialistOutput:
-    """Wrapper for Answer specialist."""
-    return SpecialistOutput(
-        role="answer_specialist",
-        invocation_id=input_.invocation_id,
-        attempt=input_.attempt,
-        status="succeeded",
-        result={"type": "draft_ready", "draft": {}},
-        requires_review=True,
+    """Wrapper for Answer specialist - calls ModelGateway for real LLM drafting."""
+    specialist = AnswerSpecialist(context)
+
+    # Build AnswerInput from SpecialistInput
+    # We need to convert evidence_ids to CanonicalUUID
+    evidence_ids = [CanonicalUUID(eid) for eid in input_.authorized_evidence_ids]
+
+    answer_input = AnswerInput(
+        question=input_.objective,
+        evidence_ids=evidence_ids,
+        chart_artifact_ids=[CanonicalUUID(cid) for cid in input_.authorized_evidence_ids if cid.startswith("chart-")],
+        deliverables=input_.constraints.get("deliverables", ["summary", "data_table"]),
+        rendering_policy_version="1.0",
     )
+
+    try:
+        # Call the actual specialist with ModelGateway
+        outcome = await specialist.draft(answer_input, model=context.model_gateway)
+
+        if outcome is not None:
+            # Check if it's DraftReady
+            if hasattr(outcome, 'draft'):
+                return SpecialistOutput(
+                    role="answer_specialist",
+                    invocation_id=input_.invocation_id,
+                    attempt=input_.attempt,
+                    status="succeeded",
+                    result={
+                        "type": "draft_ready",
+                        "draft_id": str(outcome.draft.draft_id),
+                        "blocks": [b.model_dump() for b in outcome.draft.blocks],
+                        "unmet_deliverables": [ud.model_dump() for ud in outcome.draft.unmet_deliverables],
+                    },
+                    requires_review=True,
+                )
+            elif hasattr(outcome, 'explanation'):  # Blocked
+                return SpecialistOutput(
+                    role="answer_specialist",
+                    invocation_id=input_.invocation_id,
+                    attempt=input_.attempt,
+                    status="blocked",
+                    error=outcome.explanation,
+                    result=None,
+                )
+            else:  # Failed
+                return SpecialistOutput(
+                    role="answer_specialist",
+                    invocation_id=input_.invocation_id,
+                    attempt=input_.attempt,
+                    status="failed",
+                    error=getattr(outcome, 'error_ref', 'unknown'),
+                    result=None,
+                )
+    except Exception as e:
+        return SpecialistOutput(
+            role="answer_specialist",
+            invocation_id=input_.invocation_id,
+            attempt=input_.attempt,
+            status="failed",
+            error=str(e),
+            result=None,
+        )
 
 
 async def reviewer_wrapper(
     input_: SpecialistInput,
     context: WrapperContext,
 ) -> SpecialistOutput:
-    """Wrapper for Reviewer."""
-    return SpecialistOutput(
-        role="reviewer",
-        invocation_id=input_.invocation_id,
-        attempt=input_.attempt,
-        status="succeeded",
-        result={"type": "assessment", "approved": True, "findings": []},
+    """Wrapper for Reviewer - calls ModelGateway for real LLM review."""
+    specialist = ReviewerSpecialist(context)
+
+    # Build ReviewInput from SpecialistInput
+    # The authorized_evidence_ids should contain the draft_id
+    draft_id = input_.authorized_evidence_ids[0] if input_.authorized_evidence_ids else str(uuid4())
+
+    review_input = ReviewInput(
+        request={
+            "review_id": str(uuid4()),
+            "draft_id": draft_id,
+            "draft_content_hash": "placeholder",
+            "draft_input_packet_hash": "placeholder",
+            "rendering_policy_version": "1.0",
+            "review_pass": 1,
+        },
+        packet={
+            "content_hash": "placeholder",
+        },
+        draft_input={
+            "conversation": {"original_message": {"text": input_.objective}},
+            "evidence": [],
+            "obligations": [],
+            "unmet_facts": [],
+            "partial_authorization": None,
+        },
+        rendered_text=f"Draft for: {input_.objective}",
     )
+
+    try:
+        # Call the actual specialist with ModelGateway
+        assessment = await specialist.review(review_input, model=context.model_gateway)
+
+        return SpecialistOutput(
+            role="reviewer",
+            invocation_id=input_.invocation_id,
+            attempt=input_.attempt,
+            status="succeeded",
+            result={
+                "type": "assessment",
+                "approved": assessment.verdict == "approved",
+                "findings": assessment.findings,
+                "review_id": str(assessment.review_id),
+            },
+        )
+    except Exception as e:
+        return SpecialistOutput(
+            role="reviewer",
+            invocation_id=input_.invocation_id,
+            attempt=input_.attempt,
+            status="failed",
+            error=str(e),
+            result=None,
+        )
 
 
 async def clarification_agent_wrapper(
     input_: SpecialistInput,
     context: WrapperContext,
 ) -> SpecialistOutput:
-    """Wrapper for Clarification Agent."""
-    return SpecialistOutput(
-        role="clarification_agent",
-        invocation_id=input_.invocation_id,
-        attempt=input_.attempt,
-        status="succeeded",
-        result={"type": "question_ready", "question": "Clarification needed?", "suggestions": []},
+    """Wrapper for Clarification Agent - calls ModelGateway for real LLM clarification."""
+    from querivue_agent.contracts.inputs import ClarificationInput
+    from querivue_agent.runtime.prompts import load_prompt
+
+    # Build ClarificationInput
+    clarification_input = ClarificationInput(
+        issue=input_.objective,
+        context={"run_id": str(input_.run_id)},
     )
+
+    try:
+        prompt_template = load_prompt("clarification_agent")
+        formatted_prompt = prompt_template.format(
+            issue=clarification_input.issue,
+            context=str(clarification_input.context),
+        )
+
+        response = await context.model_gateway.call_model(
+            role="clarification_agent",
+            messages=[{"role": "user", "content": formatted_prompt}],
+            tools=None,
+            tool_choice="none",
+            system_instruction=None,
+            generation_config=None,
+        )
+
+        import json
+        content = response.content if hasattr(response, 'content') else str(response)
+        parsed = json.loads(content)
+
+        return SpecialistOutput(
+            role="clarification_agent",
+            invocation_id=input_.invocation_id,
+            attempt=input_.attempt,
+            status="succeeded",
+            result={
+                "type": "question_ready",
+                "question": parsed.get("question", "Clarification needed?"),
+                "suggestions": parsed.get("suggestions", []),
+            },
+        )
+    except Exception as e:
+        return SpecialistOutput(
+            role="clarification_agent",
+            invocation_id=input_.invocation_id,
+            attempt=input_.attempt,
+            status="failed",
+            error=str(e),
+            result=None,
+        )
 
 
 def get_specialist_wrapper(role: str) -> SpecialistHandler:

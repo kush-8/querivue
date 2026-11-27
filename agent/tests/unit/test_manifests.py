@@ -52,7 +52,7 @@ def resource_profile(**changes) -> dict:
 
 def provider_identity(**changes) -> dict:
     value = {
-        "provider": "google",
+        "provider": "openrouter",
         "model_id": "gemini-test",
         "endpoint": "https://models.example.test/v1",
         "route": "primary",

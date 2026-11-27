@@ -10,7 +10,7 @@ from querivue_agent.contracts.tools import ExecuteQueryRequest, InspectTableRequ
 from querivue_agent.contracts.evidence import TabularEvidence
 from querivue_agent.runtime.sql_runner import SQLRunner, SQLRunnerConfig
 from querivue_agent.runtime.sql_tools import SQLToolContext, create_sql_tool_executor
-from querivue_agent.runtime.wrappers import WrapperContext
+from querivue_agent.runtime.context import WrapperContext
 
 
 async def run_sql(

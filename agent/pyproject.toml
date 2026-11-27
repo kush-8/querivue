@@ -10,7 +10,7 @@ dependencies = [
     "langchain==1.5.2",
     "langchain-core==1.8.4",
     "langchain-openrouter==0.3.0",
-    "langchain-ollama==0.3.0",
+    "langchain-ollama>=0.3.1",
     "langgraph==1.2.24",
     "langgraph-checkpoint-redis==0.6.0",
     "pydantic==2.14.4",
@@ -19,6 +19,10 @@ dependencies = [
     "duckdb==1.0.0",
     "sqlglot==25.7.0",
     "pyarrow==16.0.0",
+    "pandas==2.1.4",
+    "matplotlib==3.8.2",
+    "pillow==10.0.0",
+    "e2b>=2.66.0",
 ]
 
 [dependency-groups]

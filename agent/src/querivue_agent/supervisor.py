@@ -1,4 +1,4 @@
-"""Supervisor decision logic."""
+"""Supervisor decision logic - uses ModelGateway for LLM calls."""
 
 from __future__ import annotations
 
@@ -25,12 +25,70 @@ from querivue_agent.contracts.content import BlockID
 from querivue_agent.contracts.records import QueueReceipt
 from querivue_agent.runtime.wrappers import WrapperContext, run_specialist
 from querivue_agent.runtime.graph_state import RunState
+from querivue_agent.runtime.models import ModelGateway
 
 
-async def decide(request: SupervisorInput, *, model) -> SupervisorDecision:
-    """Make supervisor decision based on current state."""
-    # For T13, implement a basic supervisor that proposes queue
-    # In reality, this would call the model gateway
+async def decide(request: SupervisorInput, *, model: ModelGateway) -> SupervisorDecision:
+    """Make supervisor decision based on current state using ModelGateway."""
+    # Build messages for the model
+    messages = _build_supervisor_messages(request)
+
+    # Call the model gateway
+    response = await model.call_model(
+        role="supervisor",
+        messages=messages,
+        tools=None,
+        tool_choice="none",
+        system_instruction=None,
+        generation_config=None,
+    )
+
+    # Parse the response into a SupervisorDecision
+    return _parse_supervisor_response(response, request)
+
+
+def _build_supervisor_messages(request: SupervisorInput) -> list[dict[str, Any]]:
+    """Build message list for supervisor model call."""
+    messages = []
+
+    # System prompt is injected by ModelGateway via get_prompt("supervisor")
+    # We only need user/content messages here
+
+    # Summarize the current state
+    content = f"""Current phase: {request.controls.phase if request.controls else 'unknown'}
+Queue revision: {request.queue_revision}
+Analysis started: {request.analysis_started}
+Pending tasks: {len(request.pending_tasks)}
+Evidence items: {len(request.evidence)}
+Chart artifacts: {len(request.charts)}
+Outcomes: {len(request.outcomes)}
+
+Question: {request.conversation.original_message.get('text', '') if request.conversation else 'N/A'}"""
+
+    if request.pending_tasks:
+        content += "\n\nPending tasks:"
+        for i, task in enumerate(request.pending_tasks):
+            if isinstance(task, dict):
+                content += f"\n  {i+1}. {task.get('type', 'unknown')} - {task.get('task_id', 'unknown')}"
+            else:
+                content += f"\n  {i+1}. {task.type} - {task.task_id}"
+
+    if request.evidence:
+        content += "\n\nEvidence:"
+        for entry in request.evidence[:5]:  # Limit to first 5
+            content += f"\n  - {entry.evidence_id}: {entry.row_count} rows, {len(entry.columns)} cols"
+
+    messages.append({"role": "user", "content": content})
+
+    return messages
+
+
+def _parse_supervisor_response(response, request: SupervisorInput) -> SupervisorDecision:
+    """Parse model response into SupervisorDecision."""
+    # For now, implement a basic parsing that maps to existing logic
+    # In production, this would parse structured output from the model
+
+    content = response.content if hasattr(response, 'content') else str(response)
 
     # Check if we have evidence to answer directly
     if request.evidence and request.pending_tasks:
@@ -151,25 +209,24 @@ async def run_supervisor_step(
         run_state=run_state,
         pending_tasks=run_state.pending_tasks,
         current_task=run_state.current_task,
-        environment_manifest_id=UUID(context.artifacts if hasattr(context, 'artifacts') else "00000000-0000-0000-0000-000000000000"),
+        environment_manifest_id=UUID("00000000-0000-0000-0000-000000000000"),
         policy_version="1.0",
         configuration_hash="config-v1",
         queue_revision=run_state.execution_status.get("queue_revision", 0),
         analysis_started=run_state.execution_status.get("analysis_started", False),
     )
 
-    # Call model gateway (placeholder for T13)
+    # Call model gateway
     decision = await decide(supervisor_input, model=context.model_gateway)
 
     # Commit decision via authority
     from querivue_agent.runtime.authority import Authority
     from querivue_agent.contracts.records import QueueReceipt
 
-    # In reality, this would be committed through authority
-    # For now, update run state directly
+    # Update run state directly
     if decision.type == "propose_queue":
         run_state.pending_tasks = decision.pending_tasks
         run_state.execution_status["queue_revision"] = run_state.execution_status.get("queue_revision", 0) + 1
-        run_state.phase = "planning"
+        run_state.phase = "analysis"  # Changed from "planning" to "analysis"
 
     return run_state

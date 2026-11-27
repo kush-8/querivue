@@ -9,8 +9,8 @@ from uuid import UUID, uuid4
 from querivue_agent.contracts.records import QueueReceipt, Task
 from querivue_agent.contracts.control import SupervisorDecision, ProposeQueue
 from querivue_agent.runtime.graph_state import RunState, Task as GraphTask
+from querivue_agent.runtime.context import WrapperContext
 from querivue_agent.runtime.wrappers import (
-    WrapperContext,
     run_specialist,
     get_specialist_wrapper,
     get_input_builder,

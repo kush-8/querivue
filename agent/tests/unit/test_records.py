@@ -77,7 +77,7 @@ def schema(name: str = "terminal") -> dict:
 
 def provider() -> dict:
     return {
-        "provider": "google",
+        "provider": "openrouter",
         "model_id": "model",
         "endpoint": "https://models.example.test/v1",
         "route": "primary",

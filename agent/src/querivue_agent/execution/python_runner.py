@@ -33,11 +33,17 @@ from querivue_agent.contracts.evidence import (
     TimestamptzColumn,
     DecimalColumn,
     BooleanColumn,
+    OutputColumn,
+    SafeInteger,
+    PositiveSafeInteger,
+    NonblankString,
 )
+from querivue_agent.contracts.actions import AnalysisConstraints
 from querivue_agent.contracts.artifacts import ArtifactRef, Sha256, SourceDependency
 from querivue_agent.contracts.values import CanonicalUUID, TypedScalar
 from querivue_agent.contracts.tools import ExecutePythonRequest, OutputDeclaration
 from querivue_agent.contracts.records import OperationRequest, SandboxTicket
+from querivue_agent.contracts.common import Scope, PositiveCount
 from querivue_agent.runtime.sandbox import SandboxController
 
 
@@ -47,14 +53,14 @@ class PythonRunnerConfig:
     action_id: UUID
     run_id: UUID
     attempt: int
-    runner_nonce: str
+    runner_nonce: int  # Changed to int for PositiveCount
     sandbox_id: UUID
     pid: int
     authorized_evidence: dict[CanonicalUUID, Path]  # evidence_id -> parquet path
     analysis_timezone: str | None
     artifact_dir: Path
     resource_limits: dict[str, Any]
-    scope: Any  # Scope object
+    scope: Scope
 
 
 class PythonRunner:
@@ -70,18 +76,19 @@ class PythonRunner:
         # Create a sandbox ticket for this runner
         from querivue_agent.contracts.records import SandboxTicket
         from querivue_agent.contracts.values import CanonicalUUID, RuntimeUUID
+        from querivue_agent.contracts.common import NonblankString
 
         ticket_id = str(uuid4())
         self._ticket = SandboxTicket(
             ticket_id=RuntimeUUID(ticket_id),
             scope=self._config.scope,
-            sandbox_id=f"sandbox-{self._config.sandbox_id}",
-            command_id=f"python-{self._config.action_id}",
+            sandbox_id=NonblankString(f"sandbox-{self._config.sandbox_id}"),
+            command_id=NonblankString(f"python-{self._config.action_id}"),
             incarnation_id=RuntimeUUID(str(uuid4())),
             action_id=CanonicalUUID(str(self._config.action_id)),
             operation_id=None,
             attempt=self._config.attempt,
-            generation=self._config.runner_nonce,
+            generation=PositiveCount(self._config.runner_nonce),
             environment_manifest_id=CanonicalUUID("00000000-0000-0000-0000-000000000000"),
             state="prepared",
             created_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
@@ -97,80 +104,70 @@ class PythonRunner:
         await self.start()
 
         # Stage input evidence as read-only files
-        input_paths = {}
+        evidence_paths = []
         for evidence_id in request.input_evidence_ids:
             if evidence_id in self._config.authorized_evidence:
                 src_path = self._config.authorized_evidence[evidence_id]
                 dst_path = self._config.artifact_dir / f"input_{evidence_id}.parquet"
-                shutil.copy2(src_path, dst_path)
-                input_paths[str(evidence_id)] = dst_path
+                if not dst_path.exists():
+                    shutil.copy2(src_path, dst_path)
+                evidence_paths.append(dst_path)
 
-        # Write Python code to temp file
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
-            f.write(request.code)
-            code_path = Path(f.name)
+        # Write Python code to temp file in artifact directory
+        code_path = self._config.artifact_dir / f"script_{operation_id}.py"
+        code_path.write_text(request.code)
 
         try:
-            # Execute in sandbox
-            op_request = OperationRequest(
-                operation_id=operation_id,
-                scope=None,  # Would be proper scope
-                task_id=None,
+            # Execute in sandbox using execute_python method
+            outcome = await self._sandbox.execute_python(
                 action_id=self._config.action_id,
-                attempt=self._config.attempt,
-                execution_generation=1,
-                invocation_key=f"python-{operation_id}",
-                request_hash=hashlib.sha256(request.code.encode()).hexdigest(),
-                kind="python_code",
-                request={
-                    "code": request.code,
-                    "input_evidence_ids": [str(e) for e in request.input_evidence_ids],
-                    "outputs": [o.model_dump() for o in request.outputs],
-                },
-                input_artifacts=[
-                    ArtifactRef(
-                        artifact_id=UUID(str(uuid4())),
-                        storage_ref=CanonicalUUID(str(uuid4())),
-                        environment_manifest_id=CanonicalUUID("00000000-0000-0000-0000-000000000000"),
-                        media_type="application/vnd.apache.parquet",
-                        size_bytes=p.stat().st_size,
-                        sha256=Sha256(self._file_hash(p)),
-                    )
-                    for p in input_paths.values()
-                ],
-                deadline="2099-12-31T23:59:59Z",
-                environment_manifest_id=CanonicalUUID("00000000-0000-0000-0000-000000000000"),
+                script_path=code_path,
+                evidence_paths=evidence_paths,
             )
 
-            outcome = await self._sandbox.execute(self._ticket, op_request)
+            # Debug: log stdout/stderr
+            print(f"Python execution stdout: {outcome.stdout[:500]}")
+            print(f"Python execution stderr: {outcome.stderr[:500]}")
+            print(f"Python execution status: {outcome.status}")
 
-            # Validate outputs
-            validation_results = await self._sandbox.validate_outputs(self._ticket, op_request)
-
-            # Process output declarations
+            # Process output declarations from sandbox outputs
             evidence_list = []
             chart_list = []
 
+            # Check for output files in the sandbox action directory (working dir) and outputs dir
+            action_dir = self._sandbox._get_action_dir(self._config.action_id)
+            output_dir = action_dir / "outputs"
+
+            # Debug: list files in action_dir and output_dir
+            print(f"Files in action_dir: {list(action_dir.glob('*'))}")
+            print(f"Files in output_dir: {list(output_dir.glob('*')) if output_dir.exists() else 'N/A'}")
+
             for output_decl in request.outputs:
                 if output_decl.kind == "evidence":
-                    # Find the output parquet
-                    output_path = self._config.artifact_dir / f"output_{output_decl.name}.parquet"
+                    # Find the output parquet - check both working dir and outputs dir
+                    output_path = output_dir / f"output_{output_decl.name}.parquet"
+                    if not output_path.exists():
+                        output_path = action_dir / f"output_{output_decl.name}.parquet"
+                    print(f"Looking for evidence output at: {output_path}, exists: {output_path.exists()}")
                     if output_path.exists():
-                        evidence = await self._load_evidence(output_path, output_decl, operation_id)
+                        evidence = await self._load_evidence(output_path, output_decl, operation_id, request)
                         evidence_list.append(evidence)
                 elif output_decl.kind == "chart":
-                    # Find the output PNG
-                    output_path = self._config.artifact_dir / f"output_{output_decl.name}.png"
+                    # Find the output PNG - check both working dir and outputs dir
+                    output_path = output_dir / f"output_{output_decl.name}.png"
+                    if not output_path.exists():
+                        output_path = action_dir / f"output_{output_decl.name}.png"
+                    print(f"Looking for chart output at: {output_path}, exists: {output_path.exists()}")
                     if output_path.exists():
-                        chart = await self._load_chart(output_path, output_decl, operation_id)
+                        chart = await self._load_chart(output_path, output_decl, operation_id, request)
                         chart_list.append(chart)
 
             return {
                 "evidence": [e.model_dump() for e in evidence_list],
                 "charts": [c.model_dump() for c in chart_list],
                 "diagnostics": {
-                    "stdout": outcome.diagnostics.stdout if hasattr(outcome, 'diagnostics') else "",
-                    "stderr": outcome.diagnostics.stderr if hasattr(outcome, 'diagnostics') else "",
+                    "stdout": outcome.stdout,
+                    "stderr": outcome.stderr,
                     "stdout_truncated": False,
                     "stderr_truncated": False,
                     "source_dependencies": [],
@@ -194,20 +191,21 @@ class PythonRunner:
         parquet_path: Path,
         output_decl: OutputDeclaration,
         operation_id: UUID,
+        request: ExecutePythonRequest,
     ) -> TabularEvidence:
         """Load and validate Parquet evidence."""
         # Read schema
         table = pq.read_table(parquet_path)
-        row_count = table.num_rows
+        row_count = SafeInteger(table.num_rows)
 
         columns = []
         for i, field in enumerate(table.schema):
             col_type = self._arrow_to_column_type(field.type)
             columns.append(EvidenceColumn(
-                ordinal=i,
-                name=field.name,
+                ordinal=SafeInteger(i),
+                name=NonblankString(field.name),
                 original_label=field.name,
-                original_ordinal=i,
+                original_ordinal=SafeInteger(i),
                 type=col_type,
                 nullable=field.nullable,
             ))
@@ -220,9 +218,13 @@ class PythonRunner:
             row_data = []
             for j in range(len(columns)):
                 val = preview_rows.column(j)[i].as_py()
-                row_data.append(str(val) if val is not None else None)
+                cell_str = str(val) if val is not None else None
+                # Truncate to 2048 UTF-8 bytes
+                if cell_str is not None and len(cell_str.encode("utf-8")) > 2048:
+                    cell_str = cell_str[:2045] + "..."
+                row_data.append(cell_str)
             rows.append(row_data)
-            row_locators.append(i)
+            row_locators.append(SafeInteger(i))
 
         # Compute artifact hash
         sha256 = hashlib.sha256()
@@ -246,17 +248,37 @@ class PythonRunner:
             sha256=artifact_hash,
         )
 
-        # Build producer provenance
+        # Build producer provenance with all required fields
+        # Compute script hash
+        script_sha256 = hashlib.sha256()
+        script_sha256.update(request.code.encode('utf-8'))
+        script_hash = Sha256(script_sha256.hexdigest())
+
+        # Build constraints (empty for now - would come from action planning)
+        constraints = AnalysisConstraints(
+            metric_definitions={},
+            filters=[],
+            date_windows=[],
+            analysis_timezone=None,
+            grain=None,
+            units={},
+        )
+
         producer = PythonProducer(
             kind="python",
-            run_id=self._config.run_id,
-            action_id=self._config.action_id,
+            run_id=CanonicalUUID(str(self._config.run_id)),
+            action_id=CanonicalUUID(str(self._config.action_id)),
             operation_id=CanonicalUUID(str(operation_id)),
-            attempt=self._config.attempt,
-            code=request.code if 'request' in locals() else "",
-            input_evidence_ids=[str(e) for e in request.input_evidence_ids],
-            output_declarations=[o.name for o in request.outputs],
+            attempt=PositiveSafeInteger(self._config.attempt),
+            script_ref=CanonicalUUID(str(uuid4())),
+            script_hash=script_hash,
+            input_evidence_ids=[CanonicalUUID(str(e)) for e in request.input_evidence_ids],
+            action_input_evidence_ids=[CanonicalUUID(str(e)) for e in request.input_evidence_ids],
+            constraints=constraints,
+            random_seed=None,
+            method_parameters={},
             environment_manifest_id=CanonicalUUID("00000000-0000-0000-0000-000000000000"),
+            policy_version=NonblankString("1.0"),
         )
 
         dependencies = [
@@ -264,23 +286,26 @@ class PythonRunner:
             for _ in request.input_evidence_ids
         ]
 
+        # Build preview as TabularPreview
+        preview = {
+            "columns": columns,
+            "rows": rows,
+            "row_locators": row_locators,
+            "full_row_count": row_count,
+            "returned_row_count": SafeInteger(len(rows)),
+            "effective_limit": PositiveSafeInteger(100),
+            "ordering": "query_defined",
+            "truncated": len(rows) < int(row_count),
+            "shortened_cells": [],
+        }
+
         return TabularEvidence(
             evidence_id=CanonicalUUID(str(uuid4())),
             content_hash=artifact_hash,
             artifact=artifact,
             columns=columns,
             row_count=row_count,
-            preview={
-                "columns": columns,
-                "rows": rows,
-                "row_locators": row_locators,
-                "full_row_count": row_count,
-                "returned_row_count": len(rows),
-                "effective_limit": 100,
-                "ordering": "query_defined",
-                "truncated": len(rows) < row_count,
-                "shortened_cells": [],
-            },
+            preview=preview,
             producer=producer,
             dependencies=dependencies,
         )
@@ -290,6 +315,7 @@ class PythonRunner:
         png_path: Path,
         output_decl: OutputDeclaration,
         operation_id: UUID,
+        request: ExecutePythonRequest,
     ) -> ChartArtifact:
         """Load and validate PNG chart."""
         # Validate PNG
@@ -325,12 +351,69 @@ class PythonRunner:
             sha256=artifact_hash,
         )
 
+        # Build producer provenance with all required fields
+        # Compute script hash
+        script_sha256 = hashlib.sha256()
+        script_sha256.update(request.code.encode('utf-8'))
+        script_hash = Sha256(script_sha256.hexdigest())
+
+        constraints = AnalysisConstraints(
+            metric_definitions={},
+            filters=[],
+            date_windows=[],
+            analysis_timezone=None,
+            grain=None,
+            units={},
+        )
+
+        producer = PythonProducer(
+            kind="python",
+            run_id=CanonicalUUID(str(self._config.run_id)),
+            action_id=CanonicalUUID(str(self._config.action_id)),
+            operation_id=CanonicalUUID(str(operation_id)),
+            attempt=PositiveSafeInteger(self._config.attempt),
+            script_ref=CanonicalUUID(str(uuid4())),
+            script_hash=script_hash,
+            input_evidence_ids=[CanonicalUUID(str(e)) for e in request.input_evidence_ids],
+            action_input_evidence_ids=[CanonicalUUID(str(e)) for e in request.input_evidence_ids],
+            constraints=constraints,
+            random_seed=None,
+            method_parameters={},
+            environment_manifest_id=CanonicalUUID("00000000-0000-0000-0000-000000000000"),
+            policy_version=NonblankString("1.0"),
+        )
+
+        backing_evidence_ids = [CanonicalUUID(str(e)) for e in request.input_evidence_ids]
+
+        dependencies = [
+            SourceDependency(dataset_id=CanonicalUUID(str(uuid4())), snapshot_id=CanonicalUUID(str(uuid4())))
+            for _ in request.input_evidence_ids
+        ]
+
+        # Get dimensions from the PNG
+        try:
+            from PIL import Image
+            with Image.open(png_path) as img:
+                pixel_width = PositiveSafeInteger(img.width)
+                pixel_height = PositiveSafeInteger(img.height)
+        except Exception:
+            pixel_width = PositiveSafeInteger(800)
+            pixel_height = PositiveSafeInteger(600)
+
+        # chart_artifact_id must match artifact.artifact_id
+        chart_artifact_id = artifact.artifact_id
+
         return ChartArtifact(
-            chart_artifact_id=CanonicalUUID(str(uuid4())),
-            content_hash=artifact_hash,
+            chart_artifact_id=chart_artifact_id,
             artifact=artifact,
-            spec=output_decl.spec if hasattr(output_decl, 'spec') else {},
-            backing_evidence_ids=[CanonicalUUID(str(uuid4())) for _ in request.input_evidence_ids] if 'request' in locals() else [],
+            declaration=output_decl,  # type: ignore
+            producer=producer,
+            pixel_width=pixel_width,
+            pixel_height=pixel_height,
+            encoder_version="matplotlib",
+            normalization_version="1.0",
+            backing_evidence_ids=backing_evidence_ids,
+            dependencies=dependencies,
         )
 
     def _arrow_to_column_type(self, arrow_type) -> ColumnType:

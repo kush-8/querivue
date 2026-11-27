@@ -1,4 +1,4 @@
-"""Sandbox controller for deterministic execution environment with E2B/Docker isolation."""
+"""Sandbox controller for deterministic execution environment with E2B isolation."""
 
 from __future__ import annotations
 
@@ -31,6 +31,31 @@ from querivue_agent.runtime.sandbox import (
     SandboxConfig,
     ExecutionResult,
 )
+
+# E2B imports
+try:
+    from e2b import Sandbox
+    E2B_AVAILABLE = True
+except ImportError:
+    E2B_AVAILABLE = False
+    Sandbox = None
+
+
+@dataclass(frozen=True)
+class E2BConfig:
+    """E2B sandbox configuration."""
+    template_id: str = "base"
+    cpu: float = 2.0
+    memory_gib: float = 4.0
+    disk_gib: float = 4.0
+    network_enabled: bool = False
+    allow_internet_access: bool = False  # Explicit network control
+    timeout_seconds: int = 60
+    # Pooling configuration
+    pool_size: int = 1
+    pool_max_idle_seconds: int = 300
+    # Pool management
+    pool_reuse_sandbox: bool = True  # Reuse sandboxes across sessions
 
 
 @dataclass(frozen=True)
@@ -88,17 +113,23 @@ class OperationOutcome:
 
 
 class SandboxController:
-    """Controls sandbox lifecycle and execution with E2B/Docker isolation."""
+    """Controls sandbox lifecycle and execution with E2B isolation."""
 
-    def __init__(self, config: SandboxConfig) -> None:
+    # Class-level sandbox pool (shared across instances)
+    _pool: dict[str, list[tuple[Sandbox, datetime]]] = {}
+    _pool_lock: asyncio.Lock = asyncio.Lock()
+
+    def __init__(self, config: SandboxConfig, e2b_config: E2BConfig | None = None) -> None:
         self._config = config
+        self._e2b_config = e2b_config or E2BConfig()
         self._session_dir: Path | None = None
         self._action_dirs: dict[UUID, Path] = {}
-        self._process: asyncio.subprocess.Process | None = None
+        self._e2b_sandbox: Sandbox | None = None
         self._gate_orchestrator = GateOrchestrator(
             config.resource_limits,
-            config.session_dir / "quarantine" if config.session_dir else Path(tempfile.gettempdir()) / "querivue_quarantine"
+            config.working_dir / "quarantine" if config.working_dir else Path(tempfile.gettempdir()) / "querivue_quarantine"
         )
+        self._pooled_sandbox: bool = False
 
     @property
     def config(self) -> SandboxConfig:
@@ -108,20 +139,28 @@ class SandboxController:
     def session_dir(self) -> Path | None:
         return self._session_dir
 
+    @property
+    def e2b_sandbox(self) -> Sandbox | None:
+        return self._e2b_sandbox
+
     async def create_session(self) -> Path:
-        """Create a new sandbox session directory."""
+        """Create a new E2B sandbox session, reusing from pool if available."""
+        if not E2B_AVAILABLE:
+            raise RuntimeError("E2B SDK not installed. Run 'uv add e2b'")
+
+        # Create local temp directory for file staging
         base = Path(tempfile.gettempdir()) / "querivue_sandbox" / str(self._config.session_id)
         self._session_dir = base
         base.mkdir(parents=True, exist_ok=True)
 
-        # Create subdirectories
+        # Create subdirectories for local file management
         (base / "inputs").mkdir(exist_ok=True)
         (base / "scratch").mkdir(exist_ok=True)
         (base / "outputs").mkdir(exist_ok=True)
         (base / "quarantine").mkdir(exist_ok=True)
         (base / "validator").mkdir(exist_ok=True)
 
-        # Mount read-only inputs
+        # Mount read-only inputs locally for staging
         for i, input_path in enumerate(self._config.read_only_inputs):
             link_path = base / "inputs" / f"input_{i}{input_path.suffix}"
             if input_path.is_file():
@@ -130,6 +169,9 @@ class SandboxController:
                 shutil.copytree(input_path, link_path)
             # Make read-only
             link_path.chmod(0o444)
+
+        # Get sandbox from pool or create new
+        self._e2b_sandbox = await self._get_or_create_sandbox()
 
         # Run environment admission gates
         admission = self._gate_orchestrator.admit_environment(self._config.environment_manifest)
@@ -140,20 +182,134 @@ class SandboxController:
         return base
 
     async def destroy_session(self) -> None:
-        """Destroy the sandbox session."""
+        """Destroy the sandbox session, returning sandbox to pool if pooling enabled."""
+        # Return sandbox to pool instead of killing
+        if self._e2b_sandbox and self._pooled_sandbox and self._e2b_config.pool_reuse_sandbox:
+            await self._return_sandbox_to_pool(self._e2b_sandbox)
+            self._e2b_sandbox = None
+        elif self._e2b_sandbox:
+            try:
+                self._e2b_sandbox.kill()
+            except Exception:
+                pass
+            self._e2b_sandbox = None
+
+        # Clean up local temp directory
         if self._session_dir and self._session_dir.exists():
-            # Read-only inputs may need special handling
             shutil.rmtree(self._session_dir, ignore_errors=True)
         self._session_dir = None
         self._action_dirs.clear()
 
+    async def _get_or_create_sandbox(self) -> Sandbox:
+        """Get a sandbox from the pool or create a new one."""
+        if not self._e2b_config.pool_reuse_sandbox:
+            return await self._create_new_sandbox()
+
+        pool_key = self._get_pool_key()
+        async with SandboxController._pool_lock:
+            pool = SandboxController._pool.get(pool_key, [])
+            now = datetime.now(UTC)
+
+            # Try to find an idle sandbox that hasn't exceeded max idle time
+            while pool:
+                sandbox, last_used = pool.pop(0)
+                idle_seconds = (now - last_used).total_seconds()
+                if idle_seconds <= self._e2b_config.pool_max_idle_seconds:
+                    # Check if sandbox is still alive
+                    try:
+                        result = sandbox.commands.run("echo alive", timeout=5)
+                        if result.exit_code == 0:
+                            self._pooled_sandbox = True
+                            return sandbox
+                    except Exception:
+                        # Sandbox dead, discard
+                        pass
+                else:
+                    # Too old, kill it
+                    try:
+                        sandbox.kill()
+                    except Exception:
+                        pass
+
+            # No suitable sandbox in pool, create new
+            return await self._create_new_sandbox()
+
+    async def _create_new_sandbox(self) -> Sandbox:
+        """Create a new E2B sandbox with proper configuration."""
+        # Build sandbox creation parameters
+        create_params = {
+            "template": self._e2b_config.template_id,
+            "timeout": self._e2b_config.timeout_seconds,
+        }
+
+        # Add CPU count if specified
+        if self._e2b_config.cpu:
+            create_params["cpu_count"] = int(self._e2b_config.cpu)
+
+        # Explicit network control
+        if not self._e2b_config.allow_internet_access:
+            create_params["allow_internet_access"] = False
+        elif self._e2b_config.network_enabled:
+            create_params["allow_internet_access"] = True
+
+        sandbox = Sandbox.create(**create_params)
+
+        # Install required packages
+        install_cmd = (
+            "python3 -m pip install --quiet "
+            "pandas pyarrow matplotlib pillow duckdb sqlglot numpy"
+        )
+        result = sandbox.commands.run(install_cmd)
+        if result.exit_code != 0:
+            raise RuntimeError(f"Failed to install packages in E2B sandbox: {result.stderr}")
+
+        self._pooled_sandbox = True
+        return sandbox
+
+    def _get_pool_key(self) -> str:
+        """Generate a pool key based on sandbox configuration."""
+        return (
+            f"{self._e2b_config.template_id}:"
+            f"{self._e2b_config.cpu}:"
+            f"{self._e2b_config.memory_gib}:"
+            f"{self._e2b_config.disk_gib}:"
+            f"{self._e2b_config.allow_internet_access}"
+        )
+
+    async def _return_sandbox_to_pool(self, sandbox: Sandbox) -> None:
+        """Return a sandbox to the pool for reuse."""
+        pool_key = self._get_pool_key()
+        async with SandboxController._pool_lock:
+            pool = SandboxController._pool.setdefault(pool_key, [])
+            # Limit pool size
+            if len(pool) >= self._e2b_config.pool_size:
+                # Kill oldest
+                oldest_sandbox, _ = pool.pop(0)
+                try:
+                    oldest_sandbox.kill()
+                except Exception:
+                    pass
+            pool.append((sandbox, datetime.now(UTC)))
+
     def _get_action_dir(self, action_id: UUID) -> Path:
-        """Get or create action-specific directory."""
+        """Get or create action-specific directory (local for file staging)."""
         if action_id not in self._action_dirs:
             action_dir = self._session_dir / "actions" / str(action_id)
             action_dir.mkdir(parents=True, exist_ok=True)
             (action_dir / "scratch").mkdir(exist_ok=True)
             (action_dir / "outputs").mkdir(exist_ok=True)
+            # Copy input files from session inputs to action inputs with evidence_ prefix
+            inputs_dir = action_dir / "inputs"
+            inputs_dir.mkdir(exist_ok=True)
+            if self._session_dir:
+                session_inputs = self._session_dir / "inputs"
+                if session_inputs.exists():
+                    for i, src in enumerate(session_inputs.iterdir()):
+                        if src.is_file():
+                            dst = inputs_dir / f"evidence_{i}{src.suffix}"
+                            if not dst.exists():
+                                shutil.copy2(src, dst)
+                                dst.chmod(0o444)
             self._action_dirs[action_id] = action_dir
         return self._action_dirs[action_id]
 
@@ -266,61 +422,156 @@ class SandboxController:
         )
 
     async def _execute_sql(self, request: OperationRequest, action_dir: Path) -> ExecutionResult:
-        """Execute a SQL query in the sandbox."""
+        """Execute a SQL query in the E2B sandbox using Python duckdb."""
+        if not self._e2b_sandbox:
+            raise RuntimeError("E2B sandbox not created")
+
         output_path = action_dir / "outputs" / "result.parquet"
-        database_path = action_dir / "scratch" / "database.duckdb"
+        output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Build DuckDB command with resource limits
-        cmd = [
-            "duckdb",
-            str(database_path),
-            "-c", request.request.sql if hasattr(request.request, 'sql') else str(request.request),
-            "-result_format", "parquet",
-            "-output", str(output_path),
-        ]
-
-        # Add parameters if any
+        sql = request.request.sql if hasattr(request.request, 'sql') else str(request.request)
         params = request.request.parameters if hasattr(request.request, 'parameters') else {}
-        for key, value in params.items():
-            cmd.extend(["-param", f"{key}={value}"])
 
-        return await self._run_command(
-            action_id=request.action_id or UUID("00000000-0000-0000-0000-000000000000"),
-            cmd=cmd,
-            timeout=self._config.resource_limits.sql_timeout_seconds,
-            expected_output=output_path,
+        # Stage input evidence files to E2B sandbox
+        evidence_paths = request.request.input_evidence_ids if hasattr(request.request, 'input_evidence_ids') else []
+        for i, ev_id in enumerate(evidence_paths):
+            local_path = action_dir / "inputs" / f"evidence_{i}.parquet"
+            if local_path.exists():
+                self._e2b_sandbox.files.write(f"/tmp/evidence_{i}.parquet", local_path.read_bytes())
+
+        # Write Python script to execute SQL via duckdb Python API
+        # Load evidence parquet files as duckdb tables
+        load_evidence = "\n".join([
+            f"con.execute(\"CREATE OR REPLACE TABLE evidence_{i} AS SELECT * FROM read_parquet('/tmp/evidence_{i}.parquet')\")"
+            for i in range(len(evidence_paths))
+        ])
+
+        code = f"""
+import duckdb
+con = duckdb.connect("/tmp/database.duckdb")
+# Load evidence tables
+{load_evidence}
+# Set parameters
+{chr(10).join([f"con.execute('SET {k} = ?', [{repr(v)}])" for k, v in params.items()])}
+result = con.execute({repr(sql)}).fetchdf()
+result.to_parquet("/tmp/result.parquet", index=False)
+print(f"Rows: {{len(result)}}")
+"""
+
+        script_path = "/tmp/sql_script.py"
+        self._e2b_sandbox.files.write(script_path, code.encode())
+
+        start_time = datetime.now(UTC)
+        try:
+            result = self._e2b_sandbox.commands.run(f"python3 {script_path}", timeout=self._config.resource_limits.sql_timeout_seconds)
+
+            # Download result file
+            if result.exit_code == 0:
+                parquet_data = self._e2b_sandbox.files.read("/tmp/result.parquet", format="bytes")
+                output_path.write_bytes(parquet_data)
+                artifacts = [output_path]
+            else:
+                artifacts = []
+
+            status = "succeeded" if result.exit_code == 0 else "failed"
+            stdout = result.stdout
+            stderr = result.stderr
+            exit_code = result.exit_code
+
+        except Exception as e:
+            stdout = ""
+            stderr = str(e)
+            exit_code = -1
+            status = "failed"
+            artifacts = []
+
+        duration_ms = int((datetime.now(UTC) - start_time).total_seconds() * 1000)
+
+        return ExecutionResult(
+            status=status,
+            stdout=stdout,
+            stderr=stderr,
+            exit_code=exit_code,
+            artifacts=artifacts,
+            resource_usage={
+                "duration_ms": duration_ms,
+                "timeout_seconds": self._config.resource_limits.sql_timeout_seconds,
+            },
+            error={"message": stderr} if status != "succeeded" else None,
         )
 
     async def _execute_python(self, request: OperationRequest, action_dir: Path) -> ExecutionResult:
-        """Execute a Python script in the sandbox."""
-        # Write script to file
-        script_path = action_dir / "script.py"
-        code = request.request.code if hasattr(request.request, 'code') else str(request.request)
-        script_path.write_text(code)
+        """Execute a Python script in the E2B sandbox."""
+        if not self._e2b_sandbox:
+            raise RuntimeError("E2B sandbox not created")
 
-        # Prepare isolated environment
-        env = os.environ.copy()
-        env["PYTHONPATH"] = str(action_dir / "scratch")
-        env["QUERIVUE_EVIDENCE_DIR"] = str(action_dir / "inputs")
-        env["QUERIVUE_OUTPUT_DIR"] = str(action_dir / "outputs")
-
-        # Link evidence files as read-only
+        # Stage input evidence files to E2B sandbox
         evidence_paths = request.request.input_evidence_ids if hasattr(request.request, 'input_evidence_ids') else []
         for i, ev_id in enumerate(evidence_paths):
-            # In real implementation, these would be actual paths from the artifact store
-            link_path = action_dir / "inputs" / f"evidence_{i}.parquet"
-            link_path.parent.mkdir(exist_ok=True)
-            # Would link actual evidence file here
-            pass
+            # Find the local evidence file
+            local_path = action_dir / "inputs" / f"evidence_{i}.parquet"
+            if local_path.exists():
+                # Upload to E2B sandbox
+                self._e2b_sandbox.files.write(f"/tmp/evidence_{i}.parquet", local_path.read_bytes())
 
-        cmd = ["python3", str(script_path)]
+        # Write script to E2B sandbox
+        code = request.request.code if hasattr(request.request, 'code') else str(request.request)
+        script_path = "/tmp/script.py"
+        self._e2b_sandbox.files.write(script_path, code.encode())
 
-        return await self._run_command(
-            action_id=request.action_id or UUID("00000000-0000-0000-0000-000000000000"),
-            cmd=cmd,
-            timeout=self._config.resource_limits.python_timeout_seconds,
-            cwd=action_dir,
-            env=env,
+        start_time = datetime.now(UTC)
+        try:
+            # Run the Python script
+            cmd = f"python3 {script_path}"
+            result = self._e2b_sandbox.commands.run(cmd, timeout=self._config.resource_limits.python_timeout_seconds)
+
+            # Download output artifacts
+            artifacts = []
+            outputs_dir = action_dir / "outputs"
+            outputs_dir.mkdir(parents=True, exist_ok=True)
+
+            # List files in /tmp to find all parquet and png outputs
+            list_result = self._e2b_sandbox.commands.run("ls -1 /tmp/*.parquet /tmp/*.png 2>/dev/null || true")
+            output_files = list_result.stdout.strip().split('\n') if list_result.stdout.strip() else []
+
+            for remote_path in output_files:
+                remote_path = remote_path.strip()
+                if not remote_path:
+                    continue
+                local_filename = os.path.basename(remote_path)
+                local_path = outputs_dir / local_filename
+                try:
+                    data = self._e2b_sandbox.files.read(remote_path, format="bytes")
+                    local_path.write_bytes(data)
+                    artifacts.append(local_path)
+                except Exception as e:
+                    print(f"Failed to download {remote_path}: {e}")
+
+            status = "succeeded" if result.exit_code == 0 else "failed"
+            stdout = result.stdout
+            stderr = result.stderr
+            exit_code = result.exit_code
+
+        except Exception as e:
+            stdout = ""
+            stderr = str(e)
+            exit_code = -1
+            status = "failed"
+            artifacts = []
+
+        duration_ms = int((datetime.now(UTC) - start_time).total_seconds() * 1000)
+
+        return ExecutionResult(
+            status=status,
+            stdout=stdout,
+            stderr=stderr,
+            exit_code=exit_code,
+            artifacts=artifacts,
+            resource_usage={
+                "duration_ms": duration_ms,
+                "timeout_seconds": self._config.resource_limits.python_timeout_seconds,
+            },
+            error={"message": stderr} if status != "succeeded" else None,
         )
 
     async def _run_command(
@@ -332,65 +583,206 @@ class SandboxController:
         env: dict[str, str] | None = None,
         expected_output: Path | None = None,
     ) -> ExecutionResult:
-        """Run a command with resource limits and timeout."""
-        if not self._session_dir:
-            raise RuntimeError("Session not created")
+        """Run a command in E2B sandbox (fallback for generic commands)."""
+        if not self._e2b_sandbox:
+            raise RuntimeError("E2B sandbox not created")
 
-        action_dir = self._get_action_dir(action_id)
-        if cwd is None:
-            cwd = action_dir
-
+        cmd_str = " ".join(cmd)
         start_time = datetime.now(UTC)
 
         try:
-            self._process = await asyncio.create_subprocess_exec(
-                *cmd,
-                cwd=cwd,
-                env=env,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
+            result = self._e2b_sandbox.commands.run(cmd_str, timeout=timeout)
 
-            stdout, stderr = await asyncio.wait_for(
-                self._process.communicate(),
-                timeout=timeout,
-            )
+            artifacts = []
+            if expected_output and expected_output.exists():
+                artifacts.append(expected_output)
 
-            exit_code = self._process.returncode
-            status = "succeeded" if exit_code == 0 else "failed"
-
-        except asyncio.TimeoutError:
-            if self._process:
-                self._process.kill()
-                await self._process.wait()
-            stdout = b""
-            stderr = b"Execution timeout"
-            exit_code = -1
-            status = "timeout"
+            status = "succeeded" if result.exit_code == 0 else "failed"
+            stdout = result.stdout
+            stderr = result.stderr
+            exit_code = result.exit_code
 
         except Exception as e:
-            stdout = b""
-            stderr = str(e).encode()
+            stdout = ""
+            stderr = str(e)
             exit_code = -1
             status = "failed"
+            artifacts = []
 
         duration_ms = int((datetime.now(UTC) - start_time).total_seconds() * 1000)
 
-        artifacts = []
-        if expected_output and expected_output.exists():
-            artifacts.append(expected_output)
-
         return ExecutionResult(
             status=status,
-            stdout=stdout.decode("utf-8", errors="replace"),
-            stderr=stderr.decode("utf-8", errors="replace"),
+            stdout=stdout,
+            stderr=stderr,
             exit_code=exit_code,
             artifacts=artifacts,
             resource_usage={
                 "duration_ms": duration_ms,
                 "timeout_seconds": timeout,
             },
-            error={"message": stderr.decode("utf-8", errors="replace")} if status != "succeeded" else None,
+            error={"message": stderr} if status != "succeeded" else None,
+        )
+
+    # Compatible interface for PythonRunner
+    async def execute_python(
+        self,
+        action_id: UUID,
+        script_path: Path,
+        evidence_paths: list[Path],
+    ) -> ExecutionResult:
+        """Execute a Python script in the E2B sandbox (compatible with local SandboxController)."""
+        if not self._e2b_sandbox:
+            raise RuntimeError("E2B sandbox not created")
+
+        action_dir = self._get_action_dir(action_id)
+        outputs_dir = action_dir / "outputs"
+        outputs_dir.mkdir(parents=True, exist_ok=True)
+
+        # Stage input evidence files to E2B sandbox with expected names in working directory
+        for i, ev_path in enumerate(evidence_paths):
+            expected_name = ev_path.name  # e.g., input_00000000-0000-0000-0000-000000000002.parquet
+            # Write to E2B working directory (/home/user) for direct access
+            remote_path = f"/home/user/{expected_name}"
+            self._e2b_sandbox.files.write(remote_path, ev_path.read_bytes())
+
+        # Write script to E2B sandbox
+        code = script_path.read_text()
+        self._e2b_sandbox.files.write("/tmp/script.py", code.encode())
+
+        start_time = datetime.now(UTC)
+        try:
+            # Run the Python script
+            result = self._e2b_sandbox.commands.run(
+                "python3 /tmp/script.py",
+                timeout=self._config.resource_limits.python_timeout_seconds
+            )
+
+            # Check for output files in E2B sandbox (working directory /home/user)
+            artifacts = []
+            # List files in working directory to find outputs
+            list_result = self._e2b_sandbox.commands.run("ls -la /home/user/*.parquet /home/user/*.png 2>/dev/null || true")
+            output_files = list_result.stdout.strip().split('\n') if list_result.stdout.strip() else []
+
+            for line in output_files:
+                if line.strip():
+                    parts = line.split()
+                    if len(parts) >= 9:
+                        # Full path is in parts[-1], e.g., /home/user/output_chart.png
+                        remote_path = parts[-1]
+                        local_filename = os.path.basename(remote_path)
+                        local_path = outputs_dir / local_filename
+                        try:
+                            data = self._e2b_sandbox.files.read(remote_path, format="bytes")
+                            local_path.write_bytes(data)
+                            artifacts.append(local_path)
+                        except Exception:
+                            pass
+
+            status = "succeeded" if result.exit_code == 0 else "failed"
+            stdout = result.stdout
+            stderr = result.stderr
+            exit_code = result.exit_code
+
+        except Exception as e:
+            stdout = ""
+            stderr = str(e)
+            exit_code = -1
+            status = "failed"
+            artifacts = []
+
+        duration_ms = int((datetime.now(UTC) - start_time).total_seconds() * 1000)
+
+        return ExecutionResult(
+            status=status,
+            stdout=stdout,
+            stderr=stderr,
+            exit_code=exit_code,
+            artifacts=artifacts,
+            resource_usage={
+                "duration_ms": duration_ms,
+                "timeout_seconds": self._config.resource_limits.python_timeout_seconds,
+            },
+            error={"message": stderr} if status != "succeeded" else None,
+        )
+
+    # Compatible interface for PythonRunner
+    async def execute_sql(
+        self,
+        action_id: UUID,
+        sql: str,
+        parameters: dict[str, Any],
+        database_path: Path,
+    ) -> ExecutionResult:
+        """Execute a SQL query in the E2B sandbox (compatible with local SandboxController)."""
+        if not self._e2b_sandbox:
+            raise RuntimeError("E2B sandbox not created")
+
+        action_dir = self._get_action_dir(action_id)
+        inputs_dir = action_dir / "inputs"
+        outputs_dir = action_dir / "outputs"
+        outputs_dir.mkdir(parents=True, exist_ok=True)
+
+        output_path = outputs_dir / "result.parquet"
+
+        # Stage input evidence files to E2B sandbox working directory with expected names
+        if inputs_dir.exists():
+            for src in sorted(inputs_dir.iterdir()):
+                if src.is_file():
+                    expected_name = src.name
+                    remote_path = f"/home/user/{expected_name}"
+                    self._e2b_sandbox.files.write(remote_path, src.read_bytes())
+
+        # Write Python script to execute SQL via duckdb Python API
+        # The SQL should reference files at /home/user/input_{uuid}.parquet
+        code = f"""
+import duckdb
+con = duckdb.connect("/tmp/database.duckdb")
+result = con.execute({repr(sql)}).fetchdf()
+result.to_parquet("/tmp/result.parquet", index=False)
+print(f"Rows: {{len(result)}}")
+"""
+
+        script_path = "/tmp/sql_script.py"
+        self._e2b_sandbox.files.write(script_path, code.encode())
+
+        start_time = datetime.now(UTC)
+        try:
+            result = self._e2b_sandbox.commands.run(f"python3 {script_path}", timeout=self._config.resource_limits.sql_timeout_seconds)
+
+            # Download result file
+            if result.exit_code == 0:
+                parquet_data = self._e2b_sandbox.files.read("/tmp/result.parquet", format="bytes")
+                output_path.write_bytes(parquet_data)
+                artifacts = [output_path]
+            else:
+                artifacts = []
+
+            status = "succeeded" if result.exit_code == 0 else "failed"
+            stdout = result.stdout
+            stderr = result.stderr
+            exit_code = result.exit_code
+
+        except Exception as e:
+            stdout = ""
+            stderr = str(e)
+            exit_code = -1
+            status = "failed"
+            artifacts = []
+
+        duration_ms = int((datetime.now(UTC) - start_time).total_seconds() * 1000)
+
+        return ExecutionResult(
+            status=status,
+            stdout=stdout,
+            stderr=stderr,
+            exit_code=exit_code,
+            artifacts=artifacts,
+            resource_usage={
+                "duration_ms": duration_ms,
+                "timeout_seconds": self._config.resource_limits.sql_timeout_seconds,
+            },
+            error={"message": stderr} if status != "succeeded" else None,
         )
 
     async def validate_outputs(self, ticket: SandboxTicket, request: OperationRequest) -> tuple[Any, ...]:
@@ -435,6 +827,7 @@ def create_sandbox_controller(
     read_only_inputs: list[Path] | None = None,
     manifest: EnvironmentManifest | None = None,
     limits: ResourceLimits | None = None,
+    e2b_config: E2BConfig | None = None,
 ) -> SandboxController:
     """Create a sandbox controller with default development config."""
     from querivue_agent.runtime.sandbox import create_default_environment_manifest
@@ -451,4 +844,4 @@ def create_sandbox_controller(
         run_id=run_id,
         read_only_inputs=read_only_inputs or [],
     )
-    return SandboxController(config)
+    return SandboxController(config, e2b_config)

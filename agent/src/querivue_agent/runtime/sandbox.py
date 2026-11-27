@@ -196,18 +196,49 @@ class SandboxController:
 
         # Prepare isolated environment
         env = os.environ.copy()
+        # Preserve VIRTUAL_ENV and PATH to use the same Python environment
         env["PYTHONPATH"] = str(action_dir / "scratch")
         env["QUERIVUE_EVIDENCE_DIR"] = str(action_dir / "inputs")
         env["QUERIVUE_OUTPUT_DIR"] = str(action_dir / "outputs")
 
         # Link evidence files as read-only
+        import shutil
+        import sys
+        import stat
         for i, ev_path in enumerate(evidence_paths):
-            link_path = action_dir / "inputs" / f"evidence_{i}{ev_path.suffix}"
+            # Copy with the expected filename (e.g., input_<uuid>.parquet)
+            expected_name = ev_path.name
+            link_path = action_dir / "inputs" / expected_name
             link_path.parent.mkdir(exist_ok=True)
-            os.link(ev_path, link_path)
+            # Also create a generic name for backward compatibility
+            generic_path = action_dir / "inputs" / f"evidence_{i}{ev_path.suffix}"
+            # Also copy to working directory for direct access (what tests expect)
+            working_path = action_dir / expected_name
+            # Remove existing link if present
+            for p in [link_path, generic_path, working_path]:
+                if p.exists():
+                    try:
+                        if sys.platform == "win32":
+                            p.chmod(stat.S_IWRITE)
+                        p.unlink()
+                    except PermissionError:
+                        shutil.rmtree(p, ignore_errors=True)
+            # Use copy on Windows since hard links have permission issues
+            if sys.platform == "win32":
+                shutil.copy2(ev_path, link_path)
+                shutil.copy2(ev_path, generic_path)
+                shutil.copy2(ev_path, working_path)
+            else:
+                os.link(ev_path, link_path)
+                os.link(ev_path, generic_path)
+                os.link(ev_path, working_path)
             link_path.chmod(0o444)
+            generic_path.chmod(0o444)
+            working_path.chmod(0o444)
 
-        cmd = ["python3", str(script_path)]
+        import sys
+        python_exe = sys.executable if sys.platform == "win32" else "python3"
+        cmd = [python_exe, str(script_path)]
 
         return await self._run_command(
             action_id=action_id,

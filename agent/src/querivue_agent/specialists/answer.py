@@ -21,7 +21,7 @@ from querivue_agent.runtime.drafting import (
     Failed,
 )
 from querivue_agent.runtime.prompts import load_prompt
-from querivue_agent.runtime.wrappers import WrapperContext
+from querivue_agent.runtime.context import WrapperContext
 
 if TYPE_CHECKING:
     from querivue_agent.providers.base import ModelGateway
