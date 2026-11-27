@@ -6,6 +6,7 @@ from .nvidia import NVIDIAProvider
 from .openrouter import OpenRouterProvider
 from .cloudflare import CloudflareProvider
 from .ollama import OllamaProvider
+from .ollama_cloud import OllamaCloudProvider
 
 __all__ = [
     "ModelProvider",
@@ -16,4 +17,5 @@ __all__ = [
     "OpenRouterProvider",
     "CloudflareProvider",
     "OllamaProvider",
+    "OllamaCloudProvider",
 ]

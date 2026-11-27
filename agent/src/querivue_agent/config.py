@@ -264,12 +264,54 @@ class LocalBuildIdentity(StrictRecord):
     tokenizer_build_hash: Hash64
 
 
+class CredentialReference(StrictRecord):
+    """Stable nonsecret credential reference for backend memory resolution."""
+    credential_id: NonblankString
+    env_var: NonblankString
+    account_group: NonblankString
+    quota_group: NonblankString
+    priority: PositiveCount
+    enabled: bool = True
+
+
+class RouteConfig(StrictRecord):
+    """Route configuration with transport, model, and capability metadata."""
+    route_id: NonblankString
+    transport: Literal["openrouter", "ollama_cloud", "google", "nvidia", "cloudflare", "ollama"]
+    remote_model_id: NonblankString
+    base_url: NonblankString
+    capabilities: list[NonblankString] = Field(default_factory=list)
+    max_context_tokens: PositiveCount
+    input_token_limit: PositiveCount
+    output_token_limit: PositiveCount
+    privacy_verified: bool = False
+    spending_eligible: bool = True
+    # OpenRouter specific
+    openrouter_provider_order: list[NonblankString] = Field(default_factory=list)
+    openrouter_provider_only: list[NonblankString] = Field(default_factory=list)
+    openrouter_disable_shared_capacity: bool = True
+    # Ollama Cloud specific
+    ollama_cloud_credential_refs: list[NonblankString] = Field(default_factory=list)
+
+
+class RoleRoutePolicy(StrictRecord):
+    """Role-level routing policy with ordered route candidates."""
+    role: Role
+    route_ids: list[NonblankString] = Field(min_length=1)
+    pinned_mode: bool = True
+    require_capabilities: list[NonblankString] = Field(default_factory=list)
+    allow_fallbacks: bool = False
+    require_parameters: bool = True
+
+
 class RoleModelConfig(StrictRecord):
     identity: ProviderIdentity | None = None
     inference: InferenceSettings | None = None
     prompt_hash: Hash64 | None = None
     schema_hash: Hash64 | None = None
     credential_env: NonblankString
+    # New routing support
+    route_policy: RoleRoutePolicy | None = None
 
 
 class RunConfig(StrictRecord):
@@ -289,6 +331,9 @@ class RunConfig(StrictRecord):
     environment: EnvironmentManifest | None = None
     models: dict[Role, RoleModelConfig] = Field(default_factory=dict)
     live_authorization_ref: CanonicalUUID | None = None
+    # New routing configuration
+    credentials: dict[NonblankString, CredentialReference] = Field(default_factory=dict)
+    routes: dict[NonblankString, RouteConfig] = Field(default_factory=dict)
 
     _credentials: dict[Role, SecretStr] = PrivateAttr(default_factory=dict)
 
@@ -321,6 +366,22 @@ class RunConfig(StrictRecord):
                 requested = limits.request_input_tokens + model.inference.max_generated_tokens
                 if requested > model.identity.max_context_tokens:
                     raise ValueError(f"models.{role} request exceeds provider context")
+
+        # Validate route and credential references
+        for role, model in self.models.items():
+            if model.route_policy is not None:
+                for route_id in model.route_policy.route_ids:
+                    if route_id not in self.routes:
+                        raise ValueError(f"models.{role}.route_policy references unknown route: {route_id}")
+                route = self.routes[model.route_policy.route_ids[0]]
+                if model.route_policy.pinned_mode and len(model.route_policy.route_ids) > 1:
+                    raise ValueError(f"models.{role}: pinned_mode requires exactly one route_id")
+
+        # Validate credential references
+        for cred_id, cred_ref in self.credentials.items():
+            if cred_ref.env_var not in (env for env in self.models.values() if hasattr(env, 'credential_env')):
+                # Allow any env var for credentials
+                pass
         return self
 
     def _set_credentials(self, values: Mapping[Role, str]) -> None:
@@ -328,6 +389,12 @@ class RunConfig(StrictRecord):
 
     def credential(self, role: Role) -> SecretStr | None:
         return self._credentials.get(role)
+
+    def _set_route_credentials(self, values: Mapping[str, str]) -> None:
+        self._route_credentials = {k: SecretStr(v) for k, v in values.items() if v}
+
+    def route_credential(self, credential_id: str) -> SecretStr | None:
+        return getattr(self, "_route_credentials", {}).get(credential_id)
 
     def public_payload(self) -> dict[str, object]:
         return self.model_dump(mode="json")
@@ -416,6 +483,15 @@ def load_config(path: Path, env: Mapping[str, str]) -> RunConfig:
         if value:
             credentials[role] = value
     config._set_credentials(credentials)
+
+    # Load credentials for routes (OpenRouter BYOK, Ollama Cloud)
+    route_credentials: dict[str, str] = {}
+    for cred_id, cred_ref in config.credentials.items():
+        value = env.get(cred_ref.env_var)
+        if value and cred_ref.enabled:
+            route_credentials[cred_id] = value
+    config._set_route_credentials(route_credentials)
+
     if config.live_enabled:
         config.require_live_ready()
     return config

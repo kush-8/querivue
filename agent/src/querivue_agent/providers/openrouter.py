@@ -1,4 +1,4 @@
-"""OpenRouter provider adapter."""
+"""OpenRouter provider adapter with BYOK support."""
 
 from __future__ import annotations
 
@@ -13,19 +13,26 @@ from .base import ModelProvider, ModelRequest, ModelResponse
 
 
 class OpenRouterProvider(ModelProvider):
-    """OpenRouter API provider adapter."""
+    """OpenRouter API provider adapter with BYOK and provider selection controls."""
 
     def __init__(
         self,
         api_key: str | None = None,
         base_url: str = "https://openrouter.ai/api/v1",
         model_id: str = "google/gemini-3.5-flash-lite",
+        # BYOK and provider selection controls
+        provider_order: list[str] | None = None,
+        provider_only: list[str] | None = None,
+        disable_shared_capacity: bool = True,
     ) -> None:
         self._api_key = api_key or os.getenv("OPENROUTER_API_KEY")
         if not self._api_key:
             raise ValueError("OPENROUTER_API_KEY not set")
         self._base_url = base_url.rstrip("/")
         self._model_id = model_id
+        self._provider_order = provider_order or []
+        self._provider_only = provider_only or []
+        self._disable_shared_capacity = disable_shared_capacity
         self._client = httpx.AsyncClient(timeout=120.0)
 
     @property
@@ -82,7 +89,7 @@ class OpenRouterProvider(ModelProvider):
         request: ModelRequest,
         settings: InferenceSettings,
     ) -> dict[str, Any]:
-        """Build OpenAI-compatible request body."""
+        """Build OpenAI-compatible request body with OpenRouter provider controls."""
         body = {
             "model": self._model_id,
             "messages": request.messages,
@@ -94,7 +101,8 @@ class OpenRouterProvider(ModelProvider):
             body["seed"] = settings.seed
 
         if request.system_instruction:
-            body["messages"].insert(0, {"role": "system", "content": request.system_instruction})
+            # Create a new messages list instead of mutating the original
+            body["messages"] = [{"role": "system", "content": request.system_instruction}] + request.messages
 
         if request.tools:
             body["tools"] = request.tools
@@ -102,6 +110,16 @@ class OpenRouterProvider(ModelProvider):
 
         if request.generation_config:
             body.update(request.generation_config)
+
+        # OpenRouter provider selection parameters
+        if self._provider_order:
+            body["provider"] = {"order": self._provider_order}
+        if self._provider_only:
+            body["provider"] = body.get("provider", {})
+            body["provider"]["only"] = self._provider_only
+        if self._disable_shared_capacity:
+            body["provider"] = body.get("provider", {})
+            body["provider"]["allow_fallbacks"] = False
 
         return body
 

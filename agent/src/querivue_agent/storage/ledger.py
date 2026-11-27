@@ -21,32 +21,32 @@ class Ledger:
         """Open a ledger at the given path, initializing schema if needed.
 
         Rejects databases with unsupported schema versions. Only version 1 is supported.
+        Compatibility is verified BEFORE any mutations (PRAGMAs, schema creation).
         """
         conn = sqlite3.connect(path)
-        conn.execute("PRAGMA foreign_keys = ON")
-        conn.execute("PRAGMA journal_mode = WAL")
-        conn.execute("PRAGMA synchronous = FULL")
-        conn.execute("PRAGMA busy_timeout = 1000")
         conn.row_factory = sqlite3.Row
 
-        # Check existing schema version before any mutation
+        # Check existing schema version BEFORE any mutation
         cursor = conn.execute(
             "SELECT name FROM sqlite_master WHERE type='table' AND name='schema_version'"
         )
         if cursor.fetchone():
-            # Database exists - check version
-            version_row = conn.execute("SELECT version FROM schema_version").fetchone()
-            if version_row is None:
+            # Database exists - check ALL version rows
+            versions = [row[0] for row in conn.execute("SELECT version FROM schema_version")]
+            if not versions:
                 conn.close()
-                raise RuntimeError("Database has schema_version table but no version row")
-            existing_version = version_row[0]
-            if existing_version != 1:
+                raise RuntimeError("Database has schema_version table but no version rows")
+            if any(v != 1 for v in versions):
                 conn.close()
                 raise RuntimeError(
-                    f"Unsupported schema version {existing_version}. "
+                    f"Unsupported schema version(s) {versions}. "
                     f"Only version 1 is supported. No migration is implemented."
                 )
-            # Version 1 - database is compatible, no schema init needed
+            # Version 1 only - database is compatible, now apply pragmas
+            conn.execute("PRAGMA foreign_keys = ON")
+            conn.execute("PRAGMA journal_mode = WAL")
+            conn.execute("PRAGMA synchronous = FULL")
+            conn.execute("PRAGMA busy_timeout = 1000")
             return cls(conn)
 
         # No schema_version table - genuinely new database, initialize schema
@@ -54,6 +54,12 @@ class Ledger:
         schema_sql = schema_path.read_text(encoding="utf-8")
         conn.executescript(schema_sql)
         conn.commit()
+
+        # Now apply pragmas to the new schema
+        conn.execute("PRAGMA foreign_keys = ON")
+        conn.execute("PRAGMA journal_mode = WAL")
+        conn.execute("PRAGMA synchronous = FULL")
+        conn.execute("PRAGMA busy_timeout = 1000")
 
         return cls(conn)
 

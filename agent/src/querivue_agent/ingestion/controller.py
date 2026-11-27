@@ -8,7 +8,7 @@ from pathlib import Path
 from uuid import UUID, uuid4
 
 from querivue_agent.contracts.catalog import ImportPreview, ImportSettingsProposal, SourceSelection, DelimitedDialect, ColumnImportSettings as CatalogColumnImportSettings, FileSource, SourceFormat
-from querivue_agent.contracts.evidence import ColumnType, StringColumn, Int64Column, BooleanColumn, DateColumn, TimeColumn, TimestampColumn, TimestamptzColumn, Uint64Column
+from querivue_agent.contracts.evidence import ColumnType, StringColumn, Int64Column, BooleanColumn, DateColumn, TimeColumn, TimestampColumn, TimestamptzColumn, Uint64Column, DecimalColumn
 from querivue_agent.contracts.common import Scope, NonblankString, SafeCount
 from querivue_agent.contracts.artifacts import StagedArtifact, ArtifactRef
 from querivue_agent.contracts.values import CanonicalUUID
@@ -55,7 +55,7 @@ def _inspection_to_import_preview(
             type_map = {
                 "int64": Int64Column(tag="int64"),
                 "uint64": Uint64Column(tag="uint64"),
-                "decimal": "decimal",  # Will need precision/scale - defaulting to string for now
+                "decimal": DecimalColumn(tag="decimal", precision=38, scale=10),  # Default precision/scale
                 "string": StringColumn(tag="string"),
                 "date": DateColumn(tag="date"),
                 "time": TimeColumn(tag="time"),
@@ -333,28 +333,56 @@ async def prepare_dataset_controller(
             raise ValueError(f"Upload artifact not found: {upload_ref}")
 
         # Run preparation
-        with tempfile.TemporaryDirectory(dir=state_root) as tmp:
-            work_path = Path(tmp)
+        # Use a work directory that persists for artifact registration
+        work_path = state_root / "work_prep"
+        work_path.mkdir(exist_ok=True)
+
+        try:
             result = prepare_dataset(upload_file, settings_for_prep, attempt, work_path)
 
-        if result.errors:
-            ops.update_preparation_attempt(str(attempt_id), phase="failed")
-            raise ValueError(f"Preparation failed: {result.errors}")
+            if result.errors:
+                ops.update_preparation_attempt(str(attempt_id), phase="failed")
+                raise ValueError(f"Preparation failed: {result.errors}")
 
-        # Update attempt status
-        ops.update_preparation_attempt(
-            str(attempt_id),
-            phase="validated",
-            candidate_ref=str(result.snapshot.snapshot_id) if result.snapshot else None,
-        )
+            # Register the prepared database as an immutable artifact
+            db_path = work_path / "prepared.duckdb"
+            if not db_path.exists():
+                raise ValueError("Prepared database not found")
 
-        # Return prepared candidate info
-        return {
-            "status": "prepared",
-            "dataset_id": str(dataset_id),
-            "attempt_id": str(attempt_id),
-            "snapshot_id": str(result.snapshot.snapshot_id) if result.snapshot else None,
-            "tables": len(result.catalog),
-        }
+            # Stage the artifact
+            artifact_store = ArtifactStore(state_root)
+            with open(db_path, "rb") as f:
+                staged = artifact_store.stage(
+                    f,
+                    scope,
+                    byte_limit=100 * 1024 * 1024,  # 100MB limit
+                )
+
+            # Verify the artifact
+            artifact_store.verify(staged, result.snapshot.artifact_sha256)
+
+            # Update attempt with publication reference
+            ops.update_preparation_attempt(
+                str(attempt_id),
+                phase="validated",
+                candidate_ref=str(result.snapshot.snapshot_id) if result.snapshot else None,
+                publication_ref=staged.artifact.storage_ref,
+            )
+
+            # Return prepared candidate info
+            return {
+                "status": "prepared",
+                "dataset_id": str(dataset_id),
+                "attempt_id": str(attempt_id),
+                "snapshot_id": str(result.snapshot.snapshot_id) if result.snapshot else None,
+                "tables": len(result.catalog),
+                "artifact_ref": staged.artifact.storage_ref,
+                "artifact_sha256": staged.artifact.sha256,
+            }
+        finally:
+            # Clean up work directory
+            import shutil
+            if work_path.exists():
+                shutil.rmtree(work_path)
     finally:
         ledger.close()

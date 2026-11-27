@@ -451,7 +451,7 @@ def test_schema_incompatibility_fails_explicitly(db_path: Path) -> None:
     with pytest.raises(RuntimeError) as exc_info:
         Ledger.open(db_path)
 
-    assert "Unsupported schema version 999" in str(exc_info.value)
+    assert "Unsupported schema version(s) [999]" in str(exc_info.value)
     assert "Only version 1 is supported" in str(exc_info.value)
 
     # Verify the database was not modified (connection closed, no mutation)
