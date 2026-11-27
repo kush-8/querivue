@@ -19,7 +19,7 @@ Organized 14 November 2026. Confirmed foundations and remaining design work; com
 | [Continuous integration](ci.md) | Phase 8 design approved and closed: GitHub Actions foundation/real-service/product gates, trust/artifact/required-status policy; no workflow or hosted baseline exists from this planning work. |
 | [Sandbox execution](sandbox-execution.md) | Execution isolation, storage handoff and the E2B assessment. |
 | [Supervisor](supervisor.md) | Planning, state, delegation, outcomes and review flow. |
-| [Agent integration](agent-integration.md) | Design closed through rounds 1–7: graph/state, entry, memory/context, controls, finite limits, canonical recovery/concurrency and integrated acceptance gates. |
+| [Agent integration](agent-integration.md) | Design closed through rounds 1–7, with 27 November memory/guardrail amendments: graph/state, entry, scoped persistent Chat memory and user preferences, context, content/runtime guardrails, finite limits, canonical recovery/concurrency and integrated acceptance gates. |
 | [SQL Specialist](sql-specialist.md) | Approved SQL contracts, safety, recovery and tabular handoff. |
 | [Python Specialist](python-specialist.md) | Design review closed: rounds 1–7 approved; context/configuration dependencies and runtime gates remain. |
 | [Answer Specialist](answer-specialist.md) | Rounds 1–6 approved; design review closed with explicit readiness gates. |
@@ -27,11 +27,21 @@ Organized 14 November 2026. Confirmed foundations and remaining design work; com
 | [Evaluation and observability](evaluation-observability.md) | Supervisor evaluation, traces, execution limits, inference and cost. |
 | [Role prompts and models](role-prompts-models.md) | Approved initial role instructions, comparison baseline and development provider policy; exact pins and measured selection remain gates. |
 
+## LangChain reuse policy
+
+Approved 27 November 2026: use LangChain wherever it can satisfy the component's requirements. Evaluate maintained LangChain components and integrations first, and use them when compatible with the approved contracts; do not default to custom implementations of capabilities the framework already supplies. This applies to model providers, messages, tool schemas/binding, structured output, memory/store adapters, context utilities and guardrail integrations. LangGraph remains the orchestration/checkpoint layer and LangSmith the selected observability stack under the approved trace policy.
+
+Keep Querivue-specific policy and domain behavior in the application: memory scope/provenance, context eligibility, source authorization, accounting, execution isolation, evidence integrity and review/publication. Implement these through framework components where supported, with only the necessary adapters and checks. A custom graph or deterministic context policy is not by itself a reason to skip compatible LangChain components. Assess middleware inside a role-local agent/subgraph when it fits the existing control flow; do not replace the outer orchestration solely to obtain a helper.
+
+Before introducing or retaining custom plumbing, check current official documentation and the compatible locked APIs. Record the specific missing capability or contract mismatch, why a small integration adapter cannot cover it, and the bounded custom responsibility in the owning component guide. Verify relevant behavior before claiming compatibility. Missing verification is a readiness gate, not proof that custom code is necessary. Existing custom adapters must be reconciled with this policy when their owning component is implemented or revised.
+
+This policy includes memory, context and guardrails; it does not automatically add cross-Chat analytical memory, model summarizer calls, new storage authority, provider fallback or raw hosted tracing. Those behaviors retain their explicit contracts. Exact integration packages/configuration remain implementation choices, and this documentation decision does not install dependencies, authorize paid/live calls or establish runtime readiness.
+
 ## System boundaries
 
 Agent architecture design closed 20 November 2026: ingestion/catalog/profile and preparation lifecycle, sandbox compatibility/admission/retirement, role prompts/provider policy and the finite comparison design are approved. [Closure and remaining owners](../memory.md#final-agent-architecture-phase-closure--20-november-2026) distinguish this from implementation/readiness. Direct Google/NVIDIA/Cloudflare inference adapters are an approved synthetic/public-data development exception to earlier OpenRouter-only wording; [provider configurations](role-prompts-models.md#provider-configurations) is authoritative. All calls stay outside the execution sandbox, with identical local validation, accounting and privacy gates. Infrastructure replacements and paid/live runs are not authorized by that exception.
 
-The React frontend communicates with Django APIs. Background workers import the independent agent package. Application metadata lives in Postgres; uploaded and generated files live in shared persistent storage. Sandboxes process authorized files, while model calls run in the worker. Detailed backend, worker and frontend designs remain in their agreed later phases.
+The React frontend communicates with Django APIs. Background workers import the independent agent package. Application metadata lives in Postgres; uploaded and generated blobs use private Cloudflare R2 object storage, selected by the user on 27 November 2026. Sandboxes process authorized files, while model calls run in the worker. Detailed backend, worker and frontend designs remain in their agreed later phases.
 
 ## Confirmed foundations
 
@@ -49,9 +59,9 @@ Docker Compose runs Postgres locally. The eventual hosted setup uses Supabase Po
 
 Postgres holds Projects, Datasets, Chats, messages, run records, source relationships, and references to saved files. The agent performs analytical queries over prepared uploads inside the execution sandbox.
 
-### Shared local storage
+### Private blob storage
 
-Use a persistent Docker volume for uploaded files, prepared datasets, and artifacts. The Django API and background worker mount the same volume. Store file references and metadata in Postgres.
+Use Cloudflare R2 for durable uploaded files, prepared datasets and artifacts. Store object identities, integrity metadata and authorization/dependency records in Postgres. Workers materialize verified private scratch files for DuckDB as needed. The [storage guide](database-storage.md#deletion-retention-and-file-layout) owns private delivery, immutability, revocation and cleanup; the R2 transport and live integration checks remain to be implemented.
 
 Retain stored data until the user deletes it under the PRD's source-removal rules. Give each sandbox only the inputs authorized for its run. Keep persistent output copies outside the sandbox so later runs and recovery can retrieve them.
 

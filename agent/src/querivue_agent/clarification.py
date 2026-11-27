@@ -52,7 +52,8 @@ async def assess_entry(request, *, model) -> EntryAssessment:
 
     # Simple heuristic: accept analytical questions, reject non-analytical
     question = getattr(request, 'question', '')
-    if any(keyword in question.lower() for keyword in ['what', 'how', 'why', 'when', 'where', 'which', 'total', 'sum', 'average', 'count']):
+    keywords = ['what', 'how', 'why', 'when', 'where', 'which', 'total', 'sum', 'average', 'count', 'filter', 'show', 'get', 'list', 'select']
+    if any(keyword in question.lower() for keyword in keywords):
         return EntryAccept(
             disposition="accept",
             policy_reason="analytical_question",

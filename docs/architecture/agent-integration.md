@@ -238,6 +238,16 @@ No gate decision can override a deterministic access/format/limit failure. A gat
 
 Before enablement, fixtures must measure both false rejection of these legitimate cases and missed unsafe/off-topic inputs, operational completion, clarification quality and technical enforcement. Full-content safety certification is not claimed by bounded intake checks. The entry records/admission contract defines the mechanism, candidate limits, changed first-model ordering and durable outcome/retry/linkage/privacy behavior. Exact configuration, aggregate allocations and measured checks remain gates. Existing role packet and guardrail tests must still pass.
 
+## Guardrail layers
+
+Apply the [LangChain reuse policy](overall.md#langchain-reuse-policy): use compatible LangChain guardrail components wherever they satisfy these contracts; custom checks cover the remaining domain-specific requirements rather than duplicate supported framework behavior.
+
+Approved 27 November 2026: use complementary content checks and runtime enforcement. LangChain content-check integrations may supply targeted PII detection and input/output screening; trusted Querivue runtime checks continue to enforce source/tool authorization, SQL policy, sandbox isolation, budgets, evidence integrity, source invalidation and mandatory review/publication. Passing a content check never grants execution or publication authority.
+
+Keep the existing Entry assessor and independent Reviewer as the owners of their semantic checks. Add no duplicate model-based guardrail call by default; any additional call needs a defined gap, finite accounting and failure behavior. PII detection supplements the hosted-trace allowlist rather than replacing it. Redaction must not silently change analytical meaning, evidence or an exact approved answer. Human approval middleware applies only to a separately specified operation requiring approval; it does not replace linked analytical clarification.
+
+LangChain middleware executes through the agent compiled by `create_agent`; using LangChain model integrations inside our custom StateGraph does not automatically install those hooks. An embedded specialist agent is a possible implementation choice only after preserving the private-context, tool-execution, accounting, stopping and recovery contracts. Exact guardrail components/configuration, false-positive/negative fixtures, streamed-output handling and failure-path verification remain implementation gates. See the [official documentation research](../implementation/langchain-integration-research-2026-11-27.md#follow-up-memory-context-and-guardrails).
+
 ## Entry records and bounded admission
 
 ### Placement and context
@@ -288,7 +298,37 @@ Screen user inputs and clarification replies, not every supervisor-to-Clarificat
 
 ### Scope and authority
 
-Use Chat-scoped analytical continuity. Project scope supplies authorized Dataset snapshots/profiles, not automatically shared metric definitions, conversation text or answers from other Chats. No user-global memory, cross-Chat retrieval or new vector-memory service in the initial design. A new Chat starts with its own context; an explicit future cross-Chat import would require a separate contract. Sharing source profiles is not sharing another Chat's interpretation.
+Use Chat-scoped analytical continuity. Project scope supplies authorized Dataset snapshots/profiles, not automatically shared metric definitions, conversation text or answers from other Chats. No user-global analytical memory, cross-Chat analytical retrieval or new vector-memory service in the initial design. A new Chat starts with its own analytical context; an explicit future cross-Chat import would require a separate contract. Sharing source profiles is not sharing another Chat's interpretation. Persistent user presentation preferences are the separately scoped exception defined below, approved on 27 November 2026.
+
+### Memory lifetimes and scopes
+
+Long-term memory means retained information across sessions; it does not require semantic search, generated summaries or sharing analytical history across Chats.
+
+| Memory | Scope and purpose | Persistence boundary |
+| --- | --- | --- |
+| Run progress | Current plan, pending actions and clarification/recovery progress for one run. | LangGraph checkpoints are recoverable projections; the transactional ledger remains authoritative. A checkpoint thread identifies a run, not the entire Chat. |
+| Persistent Chat memory | Confirmed definitions, filters, unresolved questions and compatible evidence references used in follow-ups. | Durable scoped records with provenance, revisions and source dependencies, selected into each invocation under the contracts below. |
+| Project analytical memory | Explicitly shared business glossary or definitions across Chats. | Future deliberate sharing feature; not enabled by sharing Dataset profiles or by adding a memory store. |
+| Persistent user preferences | Source-independent presentation defaults, such as chart type, date display format and answer detail, across the same user's sessions and Chats. | User-owned durable records, separate from analytical definitions and evidence. Exact schema, interfaces and lifecycle verification remain gates. |
+
+### Persistent user preferences
+
+Include persistent user preferences in scope. Retain explicitly stated presentation defaults with their user basis and revision; model interpretations, uploaded cells and inferred behavior cannot silently establish them. Apply only relevant preferences to the role's bounded packet. An explicit instruction for the current request takes precedence; a one-answer override does not rewrite the continuing preference. Defaults cannot alter computed values, source authorization, required qualifications, provenance or mandatory review. A preferred date display format does not set the analytical timezone, and a chart preference cannot make an unsuitable or unsupported chart valid.
+
+Metric definitions, analytical filters, dataset-derived facts and source-bearing interpretations retain their existing Chat/Project scope and dependencies; they cannot be promoted into user-wide preferences by relabeling them. Preferences belong to their user and are not shared with other users. Freeze the selected preference revisions for the invocation's admitted conversational basis so later changes cannot silently rewrite an active run or frozen draft/review packet. Expose explicit preference update/reset/delete behavior when implementing the feature; exact persistence mapping, authenticated interfaces, retention/deletion and acceptance evidence must be specified before enablement. No new parent-state field or independent memory service is selected by this scope decision.
+
+Apply the [LangChain reuse policy](overall.md#langchain-reuse-policy) to memory and context: use compatible framework store/message/context components wherever they meet these contracts. Evaluate LangGraph's namespaced Store abstraction first for long-term record access; its exact persistence mapping is not yet selected, and it must not become a second authority. Any adapter must preserve the ledger's ownership, revisions, source invalidation and deletion rules. Keep analytical memory deterministic initially; model-generated summaries remain a future option requiring explicit accounting, provenance and context-contract review. Deterministic selection governs behavior, not a requirement to write all context utilities ourselves.
+
+### Future semantic retrieval and caching
+
+Deferred by user direction on 27 November 2026; neither capability is enabled or required for current milestone acceptance.
+
+- **Pinecone semantic retrieval:** evaluate as a derived search index over eligible memory when semantic recall is needed. Keep canonical records in the authoritative database and revalidate retrieved record IDs against current user/Chat/Project scope, revisions, source validity and provenance before constructing context. Use the maintained LangChain integration where compatible. Exact index contents, embeddings, synchronization/deletion, outage behavior, privacy/cost limits and measured retrieval quality remain future design work. This does not grant cross-Chat analytical access or select Pinecone as primary memory storage.
+- **Semantic caching:** evaluate reuse of prior work for similar requests. Similarity nominates a candidate; it does not certify identical definitions, filters, periods, units/timezones, grain, coverage, source snapshots or current permissions. Reuse must preserve applicable evidence, review and publication rules. Define the cached unit, eligibility checks, version/configuration identity, invalidation/deletion, bounded fallback and accounting before implementation. Measure false hits, correctness and latency/cost benefits against uncached execution; a stale or ineligible candidate must be treated as a miss.
+
+Pinecone retrieval and semantic caching are separate future features; choosing one does not automatically choose the other's backend or relax the existing memory/context contracts. No new dependency, remote service, embedding call or cache-hit bypass is selected by recording this scope.
+
+### Analytical record authority
 
 Distinguish (1) user-confirmed definitions, filters and source selections, (2) reported analytical results with evidence IDs, and (3) model interpretations, tentative assumptions and unresolved questions. Only an admitted explicit user statement or accepted linked clarification can establish a user-confirmed item. Agent prose, summaries, uploaded cells, entry-guardrail acceptance and Reviewer approval cannot turn an inference into user confirmation. A user assertion about a number is user context, not computed evidence. Operational progress remains ledger/checkpoint state, not analytical memory.
 
@@ -328,6 +368,10 @@ For new follow-ups, runtime supplies the entry assessor a bounded relevant slice
 | “Now exclude refunds” | Record a scoped change and obtain compatible evidence; old total is not a substitute. |
 | “Gross revenue for this answer only” | Run-local override; do not replace an explicit continuing net-revenue default. |
 | Same Project, different Chat | Shared authorized sources/profiles, no automatic inheritance of conversational definitions or old answers. |
+| Same user, new Chat/session | Relevant explicitly saved presentation preferences may apply; analytical history/definitions are not imported. |
+| Saved concise-answer default, current request asks for detail | Honor the current request without overwriting the saved default. |
+| Saved date format or chart preference | Change presentation only; do not change analytical timezone, values, evidence eligibility or chart validity. |
+| Preference updated/deleted while a run is active | Future admissions use the eligible revision; do not silently rewrite an active run's frozen input. Verify explicit update/reset/delete and user ownership before feature enablement. |
 | A finishes after B was submitted | B does not silently inherit A's new result/interpretation. |
 | Reply to older waiting clarification after a new turn | Resume that exact old run/context; do not reinterpret using newer thread defaults. |
 | Source B removed from a summary derived from A+B | Invalidate the dependent summary; do not retain a cleaned paraphrase as independent memory. |
@@ -350,7 +394,7 @@ Initially use deterministic indexed records and projections, not embeddings, sem
 Selection order within the same Chat/cutoff is:
 
 1. Exact explicitly linked question/result/entry or analytical clarification records and their necessary lineage. Invalid/cross-Chat targets fail validation; unavailable source-bearing targets remain marked unavailable rather than replaced by another thread.
-2. Recorded continuing thread context and applicable explicit Chat defaults, including superseding versions and any unresolved conflict that materially affects the request. A run-local override must not be mistaken for the continuing default. Required original wording and consequential qualifiers cannot be replaced by a summary.
+2. Recorded continuing thread context and applicable explicit Chat defaults, including superseding versions and any unresolved conflict that materially affects the request. Separately select relevant user presentation preferences under the scope and precedence rules above; include their record IDs/revisions in packet metadata. A run-local override must not be mistaken for a continuing default. Required original wording and consequential qualifiers cannot be replaced by a summary.
 3. For an unanchored submission, a bounded recent eligible thread index and the latest eligible completed exchange as a candidate, marked tentative rather than asserted to be the referent. Stable Chat order determines selection; later completion does not win. The index exposes available thread/result IDs and limited descriptive metadata, not hidden table rows. An index bound and omission marker make it clear that the candidate set may be incomplete; relevance and referent certainty are not established by recency. If the supplied candidates cannot resolve a material analytical reference, supervisor clarifies instead of guessing.
 4. Optional older explanatory exchanges or deterministic progress projections only if useful and within the later configured allowance. Do not inject an entire Chat because it is short enough to fit.
 

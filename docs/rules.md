@@ -5,6 +5,7 @@ Working agreement established 14 November 2026. This document captures the colla
 ## Scope and development process
 
 - Treat Querivue as a personal AI engineering portfolio project. Keep decisions aligned with the agreed PRD and local-first development phases.
+- Use LangChain wherever its maintained components can meet the required contracts. Follow the [LangChain reuse policy](architecture/overall.md#langchain-reuse-policy) for framework selection and documented custom-code exceptions, including memory, context and guardrails.
 - Follow spec-driven development. Design the project and its components before substantive implementation. Implement from the approved specifications, then run appropriate focused verification; do not use a test-first/TDD workflow.
 - Carry forward existing approvals and constraints. Raise a consequential change when new evidence affects an agreed decision, and update the specification before implementing that change.
 - Review consequential choices before dependent implementation. Reversible design-document edits are preauthorized under the review workflow below; coding scope and external/paid actions still require their applicable authorization.

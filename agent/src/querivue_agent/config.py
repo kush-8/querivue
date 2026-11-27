@@ -277,7 +277,7 @@ class CredentialReference(StrictRecord):
 class RouteConfig(StrictRecord):
     """Route configuration with transport, model, and capability metadata."""
     route_id: NonblankString
-    transport: Literal["openrouter", "ollama_cloud", "google", "nvidia", "cloudflare", "ollama"]
+    transport: Literal["openrouter", "ollama_cloud", "ollama"]
     remote_model_id: NonblankString
     base_url: NonblankString
     capabilities: list[NonblankString] = Field(default_factory=list)
@@ -287,8 +287,8 @@ class RouteConfig(StrictRecord):
     privacy_verified: bool = False
     spending_eligible: bool = True
     # OpenRouter specific
-    openrouter_provider_order: list[NonblankString] = Field(default_factory=list)
-    openrouter_provider_only: list[NonblankString] = Field(default_factory=list)
+    openrouter_provider_order: list[NonblankString] | None = None
+    openrouter_provider_only: list[NonblankString] | None = None
     openrouter_disable_shared_capacity: bool = True
     # Ollama Cloud specific
     ollama_cloud_credential_refs: list[NonblankString] = Field(default_factory=list)

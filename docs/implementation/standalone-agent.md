@@ -16,6 +16,10 @@
 
 ## Global constraints
 
+Apply the [LangChain reuse policy](../architecture/overall.md#langchain-reuse-policy) across all implementation slices, including memory, context and guardrails. Use compatible maintained components whenever they meet the contracts; document concrete gaps before custom alternatives. Existing custom implementations do not supersede this selection rule.
+
+The [27 November memory and guardrail amendment](../architecture/agent-integration.md#memory-lifetimes-and-scopes) includes persistent user presentation preferences, retains Chat-scoped analytical continuity/deterministic context selection, and selects complementary content/runtime guardrail layers. Exact preference persistence/lifecycle/interfaces and guardrail wiring remain owning implementation gates; historical task lists below do not establish that they are implemented. A LangGraph Store adapter and generated summaries are not selected by this amendment.
+
 - Keep the approved nine parent-state fields: `input`, `context`, `evidence`, `messages`, `pending_tasks`, `current_task`, `outcomes`, `execution_status`, `output`. No live connections, processes, dataframes or interpreter state in checkpoints.
 - One SQLite authority for standalone ownership, budgets, deletion and publication; the authority moves together to Postgres later. No Django import, dual-write or Redis/file authority. Migration proof remains a later adapter gate.
 - Source scope/cutoff is pinned at admission. Deletion of any pinned Dataset stops unfinished work; completed answers retain the approved conservative supplied-context dependency unions.

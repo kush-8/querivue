@@ -18,7 +18,7 @@ async def assess_entry(request: EntryInput, *, model) -> EntryAssessment:
     question = request.question
 
     # Simple heuristic: accept analytical questions
-    analytical_keywords = ['what', 'how', 'why', 'when', 'where', 'which', 'total', 'sum', 'average', 'count', 'compare', 'analyze', 'breakdown']
+    analytical_keywords = ['what', 'how', 'why', 'when', 'where', 'which', 'total', 'sum', 'average', 'count', 'compare', 'analyze', 'breakdown', 'filter', 'show', 'get', 'list', 'select', 'find', 'calculate']
     if any(keyword in question.lower() for keyword in analytical_keywords):
         return EntryAccept(
             disposition="accept",

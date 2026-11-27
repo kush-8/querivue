@@ -10,11 +10,7 @@ from querivue_agent.config import RunConfig
 from querivue_agent.contracts.manifests import ProviderIdentity, InferenceSettings
 from querivue_agent.runtime.prompts import PromptBundle, load_prompt_bundle_v3, RoleName, assemble_role_prompt
 from querivue_agent.providers.base import ModelProvider, ModelRequest, ModelResponse
-from querivue_agent.providers.google import GoogleProvider
-from querivue_agent.providers.nvidia import NVIDIAProvider
 from querivue_agent.providers.openrouter import OpenRouterProvider
-from querivue_agent.providers.cloudflare import CloudflareProvider
-from querivue_agent.providers.ollama import OllamaProvider
 from querivue_agent.providers.ollama_cloud import OllamaCloudProvider
 from querivue_agent.runtime.credentials import OllamaCredentialPool, CredentialEntry
 
@@ -22,7 +18,7 @@ from querivue_agent.runtime.credentials import OllamaCredentialPool, CredentialE
 @dataclass(frozen=True)
 class ModelConfig:
     """Model configuration for a role."""
-    provider: Literal["google", "nvidia", "openrouter", "cloudflare", "ollama", "ollama_cloud"]
+    provider: Literal["openrouter", "ollama", "ollama_cloud"]
     model_id: str
     reasoning: Literal["minimal", "low", "medium", "high"] = "low"
     temperature: float = 0.0
@@ -54,11 +50,7 @@ class ModelGateway:
             raise ValueError(f"Route not found: {route_id}")
 
         provider: ModelProvider
-        if route.transport == "google":
-            provider = GoogleProvider()
-        elif route.transport == "nvidia":
-            provider = NVIDIAProvider()
-        elif route.transport == "openrouter":
+        if route.transport == "openrouter":
             cred = self._config.route_credential(route_id) if hasattr(self._config, 'route_credential') else None
             api_key = cred.get_secret_value() if cred else None
             provider = OpenRouterProvider(
@@ -69,10 +61,6 @@ class ModelGateway:
                 provider_only=route.openrouter_provider_only,
                 disable_shared_capacity=route.openrouter_disable_shared_capacity,
             )
-        elif route.transport == "cloudflare":
-            provider = CloudflareProvider()
-        elif route.transport == "ollama":
-            provider = OllamaProvider(model_id=model_id or route.remote_model_id)
         elif route.transport == "ollama_cloud":
             # Initialize credential pool if needed
             if self._credential_pool is None:

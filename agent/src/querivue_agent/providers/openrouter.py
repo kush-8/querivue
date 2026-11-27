@@ -1,19 +1,19 @@
-"""OpenRouter provider adapter with BYOK support."""
+"""OpenRouter provider adapter using langchain-openrouter."""
 
 from __future__ import annotations
 
-import json
 import os
 from typing import Any
 
-import httpx
+from langchain_openrouter import ChatOpenRouter
+from langchain_core.messages import HumanMessage, AIMessage
 
 from querivue_agent.contracts.manifests import ProviderIdentity, InferenceSettings, CostRate
 from .base import ModelProvider, ModelRequest, ModelResponse
 
 
 class OpenRouterProvider(ModelProvider):
-    """OpenRouter API provider adapter with BYOK and provider selection controls."""
+    """OpenRouter API provider adapter using langchain-openrouter with BYOK support."""
 
     def __init__(
         self,
@@ -33,7 +33,23 @@ class OpenRouterProvider(ModelProvider):
         self._provider_order = provider_order or []
         self._provider_only = provider_only or []
         self._disable_shared_capacity = disable_shared_capacity
-        self._client = httpx.AsyncClient(timeout=120.0)
+
+        # Build provider parameter for langchain-openrouter
+        provider_param: dict[str, Any] = {}
+        if self._provider_order:
+            provider_param["order"] = self._provider_order
+        if self._provider_only:
+            provider_param["only"] = self._provider_only
+        if self._disable_shared_capacity:
+            provider_param["allow_fallbacks"] = False
+
+        # Create langchain model
+        self._client = ChatOpenRouter(
+            model=model_id,
+            api_key=self._api_key,
+            base_url=self._base_url,
+            openrouter_provider=provider_param if provider_param else None,
+        )
 
     @property
     def provider_identity(self) -> ProviderIdentity:
@@ -45,8 +61,8 @@ class OpenRouterProvider(ModelProvider):
             account_tier="paid",
             region="global",
             quota_identity="default",
-            sdk_name="openai",
-            sdk_version="1.0.0",
+            sdk_name="langchain-openrouter",
+            sdk_version="0.3.0",
             protocol_version="1.0",
             tokenizer_version="1.0",
             tokenizer_build_hash="e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
@@ -62,99 +78,51 @@ class OpenRouterProvider(ModelProvider):
             privacy_verified=False,
         )
 
+    def _convert_messages(self, messages: list[dict[str, Any]]) -> list[HumanMessage | AIMessage]:
+        """Convert dict messages to langchain message objects."""
+        result = []
+        for msg in messages:
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+            if role == "system":
+                result.append(HumanMessage(content=content, additional_kwargs={"role": "system"}))
+            elif role == "user":
+                result.append(HumanMessage(content=content))
+            elif role == "assistant":
+                result.append(AIMessage(content=content))
+            elif role == "tool":
+                result.append(HumanMessage(content=content, additional_kwargs={"role": "tool"}))
+        return result
+
     async def generate(
         self,
         request: ModelRequest,
         inference_settings: InferenceSettings,
     ) -> ModelResponse:
         """Generate a response from OpenRouter."""
-        url = f"{self._base_url}/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {self._api_key}",
-            "Content-Type": "application/json",
-            "HTTP-Referer": "https://querivue.local",
-            "X-Title": "Querivue Agent",
-        }
-
-        body = self._build_request_body(request, inference_settings)
-
-        response = await self._client.post(url, headers=headers, json=body)
-        response.raise_for_status()
-        data = response.json()
-
-        return self._parse_response(data)
-
-    def _build_request_body(
-        self,
-        request: ModelRequest,
-        settings: InferenceSettings,
-    ) -> dict[str, Any]:
-        """Build OpenAI-compatible request body with OpenRouter provider controls."""
-        body = {
-            "model": self._model_id,
-            "messages": request.messages,
-            "temperature": settings.temperature,
-            "max_tokens": settings.max_generated_tokens,
-        }
-
-        if settings.seed is not None:
-            body["seed"] = settings.seed
-
+        messages = request.messages.copy()
         if request.system_instruction:
-            # Create a new messages list instead of mutating the original
-            body["messages"] = [{"role": "system", "content": request.system_instruction}] + request.messages
+            messages.insert(0, {"role": "system", "content": request.system_instruction})
 
-        if request.tools:
-            body["tools"] = request.tools
-            body["tool_choice"] = request.tool_choice or "auto"
+        lc_messages = self._convert_messages(messages)
 
-        if request.generation_config:
-            body.update(request.generation_config)
+        # Build kwargs for langchain
+        kwargs: dict[str, Any] = {}
+        if inference_settings.temperature is not None:
+            kwargs["temperature"] = inference_settings.temperature
+        if inference_settings.max_generated_tokens is not None:
+            kwargs["max_tokens"] = inference_settings.max_generated_tokens
+        if inference_settings.seed is not None:
+            kwargs["seed"] = inference_settings.seed
 
-        # OpenRouter provider selection parameters
-        if self._provider_order:
-            body["provider"] = {"order": self._provider_order}
-        if self._provider_only:
-            body["provider"] = body.get("provider", {})
-            body["provider"]["only"] = self._provider_only
-        if self._disable_shared_capacity:
-            body["provider"] = body.get("provider", {})
-            body["provider"]["allow_fallbacks"] = False
-
-        return body
-
-    def _parse_response(self, data: dict[str, Any]) -> ModelResponse:
-        """Parse OpenRouter response into standard format."""
-        choices = data.get("choices", [])
-        if not choices:
-            return ModelResponse(
-                content=None,
-                tool_calls=None,
-                usage=None,
-                raw_response=data,
-            )
-
-        choice = choices[0]
-        message = choice.get("message", {})
-
-        content = message.get("content")
-        tool_calls = message.get("tool_calls")
-
-        usage = None
-        if "usage" in data:
-            u = data["usage"]
-            usage = {
-                "input_tokens": u.get("prompt_tokens", 0),
-                "output_tokens": u.get("completion_tokens", 0),
-                "total_tokens": u.get("total_tokens", 0),
-            }
+        response = await self._client.ainvoke(lc_messages, **kwargs)
 
         return ModelResponse(
-            content=content,
-            tool_calls=tool_calls,
-            usage=usage,
-            raw_response=data,
-            provider_metadata={"finish_reason": choice.get("finish_reason")},
+            content=response.content,
+            tool_calls=response.tool_calls,
+            usage=getattr(response, 'usage_metadata', None),
+            raw_response=response.model_dump() if hasattr(response, 'model_dump') else str(response),
+            provider_metadata={"finish_reason": response.response_metadata.get("finish_reason") if hasattr(response, 'response_metadata') else None},
         )
 
     async def generate_stream(
@@ -163,54 +131,29 @@ class OpenRouterProvider(ModelProvider):
         inference_settings: InferenceSettings,
     ):
         """Generate a streaming response from OpenRouter."""
-        url = f"{self._base_url}/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {self._api_key}",
-            "Content-Type": "application/json",
-            "HTTP-Referer": "https://querivue.local",
-            "X-Title": "Querivue Agent",
-        }
+        messages = request.messages.copy()
+        if request.system_instruction:
+            messages.insert(0, {"role": "system", "content": request.system_instruction})
 
-        body = self._build_request_body(request, inference_settings)
-        body["stream"] = True
+        lc_messages = self._convert_messages(messages)
 
-        async with self._client.stream("POST", url, headers=headers, json=body) as response:
-            response.raise_for_status()
-            async for line in response.aiter_lines():
-                if line.startswith("data: "):
-                    chunk_data = line[6:]
-                    if chunk_data.strip() == "[DONE]":
-                        break
-                    try:
-                        chunk = json.loads(chunk_data)
-                        yield self._parse_stream_chunk(chunk)
-                    except json.JSONDecodeError:
-                        continue
+        # Build kwargs for langchain
+        kwargs: dict[str, Any] = {}
+        if inference_settings.temperature is not None:
+            kwargs["temperature"] = inference_settings.temperature
+        if inference_settings.max_generated_tokens is not None:
+            kwargs["max_tokens"] = inference_settings.max_generated_tokens
+        if inference_settings.seed is not None:
+            kwargs["seed"] = inference_settings.seed
 
-    def _parse_stream_chunk(self, data: dict[str, Any]) -> ModelResponse:
-        """Parse a streaming chunk."""
-        choices = data.get("choices", [])
-        if not choices:
-            return ModelResponse(
-                content=None,
-                tool_calls=None,
+        async for chunk in self._client.astream(lc_messages, **kwargs):
+            yield ModelResponse(
+                content=chunk.content,
+                tool_calls=chunk.tool_calls,
                 usage=None,
-                raw_response=data,
+                raw_response=chunk.model_dump() if hasattr(chunk, 'model_dump') else str(chunk),
+                provider_metadata={"finish_reason": chunk.response_metadata.get("finish_reason") if hasattr(chunk, 'response_metadata') else None},
             )
 
-        choice = choices[0]
-        delta = choice.get("delta", {})
-
-        content = delta.get("content")
-        tool_calls = delta.get("tool_calls")
-
-        return ModelResponse(
-            content=content,
-            tool_calls=tool_calls,
-            usage=None,
-            raw_response=data,
-            provider_metadata={"finish_reason": choice.get("finish_reason")},
-        )
-
     async def close(self) -> None:
-        await self._client.aclose()
+        pass

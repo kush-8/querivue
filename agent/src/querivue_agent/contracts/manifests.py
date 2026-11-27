@@ -117,7 +117,7 @@ class CostRate(StrictRecord):
 
 
 class ProviderIdentity(StrictRecord):
-    provider: Literal["google", "nvidia", "cloudflare", "openrouter", "ollama"]
+    provider: Literal["openrouter", "ollama_cloud"]
     model_id: NonblankString
     endpoint: NonblankString
     route: NonblankString

@@ -9,6 +9,8 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
     "langchain==1.5.2",
     "langchain-core==1.8.4",
+    "langchain-openrouter==0.3.0",
+    "langchain-ollama==0.3.0",
     "langgraph==1.2.24",
     "langgraph-checkpoint-redis==0.6.0",
     "pydantic==2.14.4",
