@@ -172,9 +172,9 @@ async def cmd_import(args: argparse.Namespace, config: RunConfig) -> int:
     upload_id = uuid4()
     src_path = Path(args.file).expanduser().resolve()
     if not src_path.exists():
-        result = {"status": "error", "message": f"File not found: {args.file}"}
+        result = {"status": "unavailable", "message": f"File not found: {args.file}"}
         print(json.dumps(result))
-        return 1
+        return UNAVAILABLE_EXIT
 
     dst_path = artifacts_dir / str(upload_id)
     shutil.copy2(src_path, dst_path)
