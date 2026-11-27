@@ -306,7 +306,7 @@ class DraftingEngine:
             return str(value)
         elif fmt == "currency_2":
             if isinstance(value, (int, float)):
-                return f"${value:.2f}"
+                return f"${value:,.2f}"
             return str(value)
         elif fmt == "iso":
             return str(value)

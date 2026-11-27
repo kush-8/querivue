@@ -6,7 +6,8 @@ import json
 from typing import Any, TYPE_CHECKING
 from uuid import UUID
 
-from querivue_agent.contracts.inputs import AnswerInput, AnswerOutcome
+from querivue_agent.contracts.inputs import AnswerInput
+from querivue_agent.contracts.responses import AnswerOutcome
 from querivue_agent.contracts.content import DraftBlock
 from querivue_agent.contracts.values import CanonicalUUID
 from querivue_agent.runtime.drafting import (

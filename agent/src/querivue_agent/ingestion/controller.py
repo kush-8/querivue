@@ -83,6 +83,7 @@ def _inspection_to_import_preview(
             source_id=table.source_descriptor.source_id,
             format=inspection.format,
             descriptor=table.source_descriptor.descriptor,
+            sql_name=table.source_descriptor.sql_name,
             header_row=0 if table.source_descriptor.format in ("csv", "tsv") else None,
             has_header=True,
         )

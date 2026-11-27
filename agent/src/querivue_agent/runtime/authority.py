@@ -26,7 +26,6 @@ from querivue_agent.contracts.records import (
     AdmissionReceipt,
     AdmissionTarget,
     DeletionReceipt,
-    EvidenceRef,
     FinalCandidate,
     FinalResult,
     IntakeAdmission,
@@ -41,6 +40,7 @@ from querivue_agent.contracts.records import (
     ResumeReceipt,
     ReviewReservation,
 )
+from querivue_agent.contracts.evidence import EvidenceRef
 from querivue_agent.runtime.budgets import check_reservation, create_initial_budget
 from querivue_agent.storage.ledger import Ledger, LedgerOps
 

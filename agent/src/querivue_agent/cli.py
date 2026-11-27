@@ -18,7 +18,8 @@ from querivue_agent.config import load_config, RunConfig
 from querivue_agent.contracts.catalog import ImportSettings, ImportSettingsProposal
 from querivue_agent.contracts.common import Scope
 from querivue_agent.contracts.entry import EntryInput as IntakeEntryInput, EntryAccept, EntryReject, EntryClarify, EntryAssessment
-from querivue_agent.contracts.values import CanonicalUUID, RuntimeUUID, Sha256
+from querivue_agent.contracts.artifacts import Sha256
+from querivue_agent.contracts.values import CanonicalUUID, RuntimeUUID
 from querivue_agent.runtime.authority import Authority
 from querivue_agent.storage.ledger import Ledger
 from querivue_agent.contracts.records import IntakeAdmission, NewRunTarget

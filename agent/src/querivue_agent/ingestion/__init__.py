@@ -1,6 +1,6 @@
 """Data ingestion pipeline for prepared datasets."""
 
-from .settings import ImportSettings, ImportFormat, SourceDescriptor
+from .settings import ImportSettings, ImportFormat, SourceDescriptor, ColumnImportSettings, TableImportSettings
 from .catalog import (
     TableCatalog,
     ColumnCatalog,
@@ -32,6 +32,8 @@ __all__ = [
     "ImportSettings",
     "ImportFormat",
     "SourceDescriptor",
+    "ColumnImportSettings",
+    "TableImportSettings",
     "TableCatalog",
     "ColumnCatalog",
     "generate_sql_name",

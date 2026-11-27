@@ -81,7 +81,7 @@ class ReviewerEngine:
         findings.extend(self._check_coverage(draft, request))
 
         # 6. Check evidence sufficiency for partial authorization
-        if request.partial_authorized:
+        if draft.unmet_deliverables:
             findings.extend(self._check_partial_authorization(draft, request))
 
         # Determine verdict

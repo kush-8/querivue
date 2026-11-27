@@ -212,7 +212,8 @@ def _render_chart_span_with_evidence(
     if chart is None:
         return f"[Chart: {span.chart_artifact_id} (not found)]"
 
-    caption = span.caption or chart.spec.title if hasattr(chart, 'spec') else ""
+    # ChartArtifact uses declaration.title, not spec.title
+    caption = getattr(getattr(chart, 'declaration', None), 'title', '') or ""
     return f"[Chart: {span.chart_artifact_id} — {caption}]"
 
 

@@ -131,6 +131,7 @@ def inspect_csv(path: Path, encoding: str = "utf-8", delimiter: str | None = Non
             source_id=CanonicalUUID(str(uuid4())),
             format="csv",
             descriptor="CSV file",
+            sql_name=None,  # Not needed for preview
         ),
         row_count=len(data_rows),
         columns=columns,

@@ -62,7 +62,7 @@ def create_mock_evidence(evidence_id: CanonicalUUID, row_count: int = 10) -> Tab
                 EvidenceColumn(ordinal=0, name="revenue", original_label="revenue", original_ordinal=0, type=Int64Column(tag="int64"), nullable=False),
                 EvidenceColumn(ordinal=1, name="region", original_label="region", original_ordinal=1, type=StringColumn(tag="string"), nullable=False),
             ],
-            rows=[[10000, "North"], [15000, "South"]],
+            rows=[["10000", "North"], ["15000", "South"]],
             row_locators=[0, 1],
             full_row_count=row_count,
             returned_row_count=SafeCount(2),
@@ -100,28 +100,72 @@ def create_mock_evidence(evidence_id: CanonicalUUID, row_count: int = 10) -> Tab
 
 def create_mock_chart(chart_id: CanonicalUUID) -> ChartArtifact:
     """Create mock chart artifact for testing."""
-    from querivue_agent.contracts.evidence import ChartArtifact, ChartSpec, ChartEncoding, ChartType
+    from querivue_agent.contracts.artifacts import ArtifactRef, SourceDependency
+    from querivue_agent.contracts.common import PositiveCount, Sha256
+    from querivue_agent.contracts.evidence import (
+        ChartArtifact, ChartDeclaration, ChartSeries, Identifier, NonblankString,
+        PythonProducer, AnalysisConstraints, ColumnOrdering, TypedScalar
+    )
+
+    manifest_id = CanonicalUUID(str(uuid4()))
+    evidence_id = CanonicalUUID(str(uuid4()))
 
     return ChartArtifact(
         chart_artifact_id=chart_id,
-        content_hash="b" * 64,
         artifact=ArtifactRef(
-            artifact_id=CanonicalUUID(str(uuid4())),
+            artifact_id=chart_id,
             storage_ref=CanonicalUUID(str(uuid4())),
-            media_type="application/vnd.querivue.chart+json",
+            media_type="image/png",
             size_bytes=500,
             sha256="b" * 64,
-            environment_manifest_id=CanonicalUUID(str(uuid4())),
+            environment_manifest_id=manifest_id,
         ),
-        spec=ChartSpec(
-            type=ChartType.BAR,
+        declaration=ChartDeclaration(
+            name=Identifier("revenue_chart"),
+            kind="chart",
             title="Revenue by Region",
-            encoding=ChartEncoding(
-                x="region",
-                y="revenue",
-            ),
+            description="Revenue data by region",
+            series=[
+                ChartSeries(
+                    label="revenue",
+                    evidence_id=evidence_id,
+                    ordering=[],
+                    scales={"revenue": "linear"},
+                    columns={"revenue": "revenue"},
+                )
+            ],
+            units={"revenue": "USD"},
+            analysis_timezone="UTC",
+            limitations=[],
         ),
-        backing_evidence_ids=[CanonicalUUID(str(uuid4()))],
+        producer=PythonProducer(
+            kind="python",
+            run_id=CanonicalUUID(str(uuid4())),
+            action_id=CanonicalUUID(str(uuid4())),
+            operation_id=CanonicalUUID(str(uuid4())),
+            attempt=PositiveCount(1),
+            script_ref=CanonicalUUID(str(uuid4())),
+            script_hash=Sha256("c" * 64),
+            input_evidence_ids=[evidence_id],
+            action_input_evidence_ids=[evidence_id],
+            constraints=AnalysisConstraints(
+                metric_definitions={"revenue": "sum(amount)"},
+                filters=[],
+                date_windows=[],
+                analysis_timezone="UTC",
+                grain="day",
+                units={"revenue": "USD"},
+            ),
+            random_seed=42,
+            method_parameters={},
+            environment_manifest_id=manifest_id,
+            policy_version="v1",
+        ),
+        pixel_width=800,
+        pixel_height=600,
+        encoder_version="v1",
+        normalization_version="v1",
+        backing_evidence_ids=[evidence_id],
         dependencies=[
             SourceDependency(dataset_id=CanonicalUUID(str(uuid4())), snapshot_id=CanonicalUUID(str(uuid4())))
         ],
@@ -628,6 +672,43 @@ def test_review_flow_integration():
     # Step 3: Finalize (render)
     from querivue_agent.contracts.records import ReviewedCandidate
     from querivue_agent.contracts.responses import ReviewedAssessment as ContractReviewedAssessment
+    from querivue_agent.contracts.content import Draft, DraftBlock, TextSpan, ValueSpan, CellTarget, UnmetDeliverable
+
+    # Convert TypedDraft to contract Draft
+    contract_blocks = []
+    for b in draft.blocks:
+        contract_spans = []
+        for span in b.spans:
+            if isinstance(span, str):
+                contract_spans.append(TextSpan(kind="text", text=span))
+            elif hasattr(span, 'target') and hasattr(span, 'format'):
+                # ValueSpan
+                target = span.target
+                if target.get("type") == "cell":
+                    contract_spans.append(ValueSpan(
+                        kind="value",
+                        target=CellTarget(
+                            kind="cell",
+                            evidence_id=CanonicalUUID(target["evidence_id"]),
+                            row_locator=target["row_locator"],
+                            column_ordinal=target["column_ordinal"],
+                        ),
+                        format=span.format,
+                    ))
+        contract_blocks.append(DraftBlock(
+            block_id=b.block_id,
+            kind=b.kind,
+            spans=contract_spans,
+            supports=[
+                CellTarget(kind="cell", evidence_id=CanonicalUUID(s["evidence_id"]), row_locator=s["row_locator"], column_ordinal=s["column_ordinal"])
+                for s in b.supports if s.get("type") == "cell"
+            ],
+        ))
+
+    contract_draft = Draft(
+        blocks=contract_blocks,
+        unmet_deliverables=[],
+    )
 
     contract_review = ContractReviewedAssessment(
         review_id=assessment.review_id,
@@ -654,7 +735,7 @@ def test_review_flow_integration():
         originating_invocation_id=CanonicalUUID(str(uuid4())),
         kind="reviewed",
         draft_id=draft.draft_id,
-        draft=draft,  # type: ignore
+        draft=contract_draft,
         completeness="complete",
         review=contract_review,
         approval_ref=assessment.review_id,

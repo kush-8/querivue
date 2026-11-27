@@ -99,7 +99,13 @@ def create_mock_chart(chart_id: CanonicalUUID) -> ChartArtifact:
     """Create mock chart artifact for testing."""
     from querivue_agent.contracts.artifacts import ArtifactRef, SourceDependency
     from querivue_agent.contracts.common import PositiveCount
-    from querivue_agent.contracts.evidence import ChartArtifact, ChartDeclaration, ChartSeries, ColumnOrdering, Identifier, NonblankString, PythonProducer
+    from querivue_agent.contracts.evidence import (
+        ChartArtifact, ChartDeclaration, ChartSeries, Identifier, NonblankString,
+        PythonProducer, Sha256, AnalysisConstraints, ColumnOrdering, TypedScalar
+    )
+
+    manifest_id = CanonicalUUID(str(uuid4()))
+    evidence_id = CanonicalUUID(str(uuid4()))
 
     return ChartArtifact(
         chart_artifact_id=chart_id,
@@ -109,7 +115,7 @@ def create_mock_chart(chart_id: CanonicalUUID) -> ChartArtifact:
             media_type="image/png",
             size_bytes=500,
             sha256="b" * 64,
-            environment_manifest_id=CanonicalUUID(str(uuid4())),
+            environment_manifest_id=manifest_id,
         ),
         declaration=ChartDeclaration(
             name=Identifier("sales_chart"),
@@ -119,7 +125,7 @@ def create_mock_chart(chart_id: CanonicalUUID) -> ChartArtifact:
             series=[
                 ChartSeries(
                     label="sales",
-                    evidence_id=CanonicalUUID(str(uuid4())),
+                    evidence_id=evidence_id,
                     ordering=[],
                     scales={"sales": "linear"},
                     columns={"sales": "sales"},
@@ -135,17 +141,28 @@ def create_mock_chart(chart_id: CanonicalUUID) -> ChartArtifact:
             action_id=CanonicalUUID(str(uuid4())),
             operation_id=CanonicalUUID(str(uuid4())),
             attempt=PositiveCount(1),
-            code="chart_code",
-            parameters={},
-            input_evidence_ids=[CanonicalUUID(str(uuid4()))],
-            environment_manifest_id=CanonicalUUID(str(uuid4())),
+            script_ref=CanonicalUUID(str(uuid4())),
+            script_hash=Sha256("c" * 64),
+            input_evidence_ids=[evidence_id],
+            action_input_evidence_ids=[evidence_id],
+            constraints=AnalysisConstraints(
+                metric_definitions={"count": "count(*)"},
+                filters=[],
+                date_windows=[],
+                analysis_timezone="UTC",
+                grain="day",
+                units={"count": "rows"},
+            ),
+            random_seed=42,
+            method_parameters={},
+            environment_manifest_id=manifest_id,
             policy_version="v1",
         ),
         pixel_width=800,
         pixel_height=600,
         encoder_version="v1",
         normalization_version="v1",
-        backing_evidence_ids=[CanonicalUUID(str(uuid4()))],
+        backing_evidence_ids=[evidence_id],
         dependencies=[
             SourceDependency(dataset_id=CanonicalUUID(str(uuid4())), snapshot_id=CanonicalUUID(str(uuid4())))
         ],

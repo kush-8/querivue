@@ -22,6 +22,7 @@ class SourceDescriptor:
     source_id: CanonicalUUID
     format: ImportFormat
     descriptor: str  # Worksheet name, range, SQLite table name, etc.
+    sql_name: NonblankString | None = None  # Generated SQL table name (e.g., "t_001"), None for preview
     header_row: SafeCount | None = None
     has_header: bool = True
     selected_range: str | None = None  # e.g., "A1:D100" for Excel
@@ -104,6 +105,7 @@ class ImportSettings:
                 "source_id": str(table.source_descriptor.source_id),
                 "format": table.source_descriptor.format,
                 "descriptor": table.source_descriptor.descriptor,
+                "sql_name": str(table.source_descriptor.sql_name),
                 "header_row": table.source_descriptor.header_row,
                 "has_header": table.source_descriptor.has_header,
                 "selected_range": table.source_descriptor.selected_range,

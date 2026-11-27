@@ -32,6 +32,7 @@ from querivue_agent.ingestion.catalog import (
     build_table_catalog,
     build_column_catalog,
     resolve_duckdb_type,
+    _normalize_label,
 )
 from querivue_agent.ingestion.inspection import InspectionResult
 
@@ -54,62 +55,72 @@ def prepare_dataset(
     """Prepare a dataset from upload using confirmed settings."""
     errors = []
 
+    # Use work_dir directly (or create temp if not provided)
+    if work_dir is None:
+        temp_dir_context = tempfile.TemporaryDirectory()
+        work_path = Path(temp_dir_context.__enter__())
+        cleanup_temp = True
+    else:
+        work_path = work_dir
+        cleanup_temp = False
+
     try:
-        with tempfile.TemporaryDirectory(dir=work_dir) as tmp:
-            work_path = Path(tmp)
+        # 1. Create DuckDB database
+        db_path = work_path / "prepared.duckdb"
+        conn = duckdb.connect(str(db_path))
 
-            # 1. Create DuckDB database
-            db_path = work_path / "prepared.duckdb"
-            conn = duckdb.connect(str(db_path))
+        try:
+            catalog = []
 
-            try:
-                catalog = []
+            # 2. Process each table based on format
+            for table_settings in settings.table_settings:
+                table_catalog = _process_table(
+                    conn,
+                    upload_path,
+                    table_settings,
+                    settings,
+                    work_path,
+                )
+                catalog.append(table_catalog)
 
-                # 2. Process each table based on format
-                for table_settings in settings.table_settings:
-                    table_catalog = _process_table(
-                        conn,
-                        upload_path,
-                        table_settings,
-                        settings,
-                        work_path,
-                    )
-                    catalog.append(table_catalog)
+            # 3. Validate and finalize
+            _validate_catalog(conn, catalog)
 
-                # 3. Validate and finalize
-                _validate_catalog(conn, catalog)
+            # 4. Compute schema fingerprint BEFORE closing connection
+            schema_fingerprint = _compute_schema_fingerprint(conn)
 
-                # 4. Close connection (checkpoints the database)
+            # 5. Close connection (checkpoints the database)
+            conn.close()
+            conn = None  # Prevent double-close in finally
+
+            # 6. Hash the database file
+            artifact_sha256 = _compute_file_hash(db_path)
+            artifact_size = db_path.stat().st_size
+
+            # 7. Build prepared snapshot
+            snapshot = PreparedSnapshot(
+                dataset_id=attempt.dataset_id,
+                attempt_id=attempt.attempt_id,
+                snapshot_id=CanonicalUUID(str(uuid4())),
+                catalog_hash=_compute_catalog_hash(catalog),
+                table_ids=[CanonicalUUID(str(uuid4())) for _ in catalog],  # Would be actual table IDs
+                artifact_ref=f"artifact_{attempt.attempt_id}",
+                artifact_size=artifact_size,
+                artifact_sha256=artifact_sha256,
+                schema_fingerprint=schema_fingerprint,
+                environment_manifest_id=attempt.environment_manifest_id or CanonicalUUID(str(uuid4())),
+                ready_revision=1,
+            )
+
+            return PreparationResult(
+                attempt=attempt,
+                snapshot=snapshot,
+                catalog=catalog,
+            )
+
+        finally:
+            if conn is not None:
                 conn.close()
-
-                # 5. Hash the database file
-                artifact_sha256 = _compute_file_hash(db_path)
-                artifact_size = db_path.stat().st_size
-
-                # 6. Build prepared snapshot
-                snapshot = PreparedSnapshot(
-                    dataset_id=attempt.dataset_id,
-                    attempt_id=attempt.attempt_id,
-                    snapshot_id=CanonicalUUID(str(uuid4())),
-                    catalog_hash=_compute_catalog_hash(catalog),
-                    table_ids=[CanonicalUUID(str(uuid4())) for _ in catalog],  # Would be actual table IDs
-                    artifact_ref=f"artifact_{attempt.attempt_id}",
-                    artifact_size=artifact_size,
-                    artifact_sha256=artifact_sha256,
-                    schema_fingerprint=_compute_schema_fingerprint(conn),
-                    environment_manifest_id=attempt.environment_manifest_id or CanonicalUUID(str(uuid4())),
-                    ready_revision=1,
-                )
-
-                return PreparationResult(
-                    attempt=attempt,
-                    snapshot=snapshot,
-                    catalog=catalog,
-                )
-
-            finally:
-                if 'conn' in locals():
-                    conn.close()
 
     except Exception as e:
         errors.append(f"Preparation failed: {e}")
@@ -117,6 +128,9 @@ def prepare_dataset(
             attempt=attempt,
             errors=errors,
         )
+    finally:
+        if cleanup_temp:
+            temp_dir_context.__exit__(None, None, None)
 
 
 def _process_table(
@@ -155,14 +169,21 @@ def _process_csv_table(
     """Process CSV/TSV table using DuckDB's native reader."""
     delimiter = settings.delimiter or ("," if settings.source_format == "csv" else "\t")
 
+    # Generate SQL table name from descriptor
+    table_sql_name = _normalize_label(table_settings.source_descriptor.descriptor)
+    if table_sql_name and table_sql_name[0].isdigit():
+        table_sql_name = f"t_{table_sql_name}"
+    if len(table_sql_name) > 63:
+        table_sql_name = table_sql_name[:63]
+
     # Build COPY statement
     column_defs = []
     for col_setting in table_settings.column_settings:
-        sql_name = col_setting.sql_name
+        sql_name = str(col_setting.sql_name)
         duckdb_type = _map_type(col_setting.requested_type)
         column_defs.append(f'"{sql_name}" {duckdb_type}')
 
-    create_sql = f'CREATE TABLE "{table_settings.source_descriptor.sql_name}" ({", ".join(column_defs)})'
+    create_sql = f'CREATE TABLE "{table_sql_name}" ({", ".join(column_defs)})'
     conn.execute(create_sql)
 
     # Use DuckDB's CSV reader
@@ -171,15 +192,21 @@ def _process_csv_table(
         null_markers.extend(col_setting.missing_markers)
     null_str = ",".join(f"'{m}'" for m in null_markers) if null_markers else "''"
 
+    # Handle escape character - DuckDB requires single char or omit entirely
+    if settings.escape_char:
+        escape_clause = f"ESCAPE '{settings.escape_char}'"
+    else:
+        escape_clause = ""
+
     copy_sql = f"""
-    COPY "{table_settings.source_descriptor.sql_name}"
+    COPY "{table_sql_name}"
     FROM '{upload_path}'
     WITH (
         FORMAT csv,
         DELIMITER '{delimiter}',
         HEADER {str(settings.table_settings[0].source_descriptor.has_header).lower()},
         QUOTE '{settings.quote_char}',
-        ESCAPE '{settings.escape_char or "\\\\"}',
+        {escape_clause}
         NULL {null_str},
         ENCODING '{settings.encoding}',
         ALLOW_QUOTED_NULLS {str(settings.allow_quoted_nulls).lower()}
@@ -188,7 +215,7 @@ def _process_csv_table(
     conn.execute(copy_sql)
 
     # Get row count and column info
-    count_result = conn.execute(f'SELECT COUNT(*) FROM "{table_settings.source_descriptor.sql_name}"').fetchone()
+    count_result = conn.execute(f'SELECT COUNT(*) FROM "{table_sql_name}"').fetchone()
     row_count = count_result[0] if count_result else 0
 
     # Build column catalogs
@@ -196,7 +223,7 @@ def _process_csv_table(
     for i, col_setting in enumerate(table_settings.column_settings):
         # Get actual null count
         null_count_result = conn.execute(
-            f'SELECT COUNT(*) FROM "{table_settings.source_descriptor.sql_name}" WHERE "{col_setting.sql_name}" IS NULL'
+            f'SELECT COUNT(*) FROM "{table_sql_name}" WHERE "{col_setting.sql_name}" IS NULL'
         ).fetchone()
         null_count = null_count_result[0] if null_count_result else 0
 
@@ -225,7 +252,7 @@ def _process_csv_table(
         dataset_id=CanonicalUUID(str(uuid4())),  # Would be actual dataset ID
         snapshot_id=CanonicalUUID(str(uuid4())),
         ordinal=0,
-        sql_name=table_settings.source_descriptor.sql_name,
+        sql_name=NonblankString(table_sql_name),
         source_descriptor=table_settings.source_descriptor.descriptor,
         row_count=row_count,
         column_catalogs=column_catalogs,
@@ -239,13 +266,19 @@ def _process_json_table(
     table_settings: TableImportSettings,
 ) -> TableCatalog:
     """Process JSON table using DuckDB's native reader."""
+    table_sql_name = _normalize_label(table_settings.source_descriptor.descriptor)
+    if table_sql_name and table_sql_name[0].isdigit():
+        table_sql_name = f"t_{table_sql_name}"
+    if len(table_sql_name) > 63:
+        table_sql_name = table_sql_name[:63]
+
     # DuckDB can read JSON directly
     conn.execute(f"""
-    CREATE TABLE "{table_settings.source_descriptor.sql_name}"
+    CREATE TABLE "{table_sql_name}"
     AS SELECT * FROM read_json_auto('{upload_path}')
     """)
 
-    return _finalize_table(conn, table_settings)
+    return _finalize_table(conn, table_settings, table_sql_name)
 
 
 def _process_jsonl_table(
@@ -254,12 +287,18 @@ def _process_jsonl_table(
     table_settings: TableImportSettings,
 ) -> TableCatalog:
     """Process JSONL table using DuckDB's native reader."""
+    table_sql_name = _normalize_label(table_settings.source_descriptor.descriptor)
+    if table_sql_name and table_sql_name[0].isdigit():
+        table_sql_name = f"t_{table_sql_name}"
+    if len(table_sql_name) > 63:
+        table_sql_name = table_sql_name[:63]
+
     conn.execute(f"""
-    CREATE TABLE "{table_settings.source_descriptor.sql_name}"
+    CREATE TABLE "{table_sql_name}"
     AS SELECT * FROM read_json_auto('{upload_path}', format='newline_delimited')
     """)
 
-    return _finalize_table(conn, table_settings)
+    return _finalize_table(conn, table_settings, table_sql_name)
 
 
 def _process_parquet_table(
@@ -268,12 +307,18 @@ def _process_parquet_table(
     table_settings: TableImportSettings,
 ) -> TableCatalog:
     """Process Parquet table using DuckDB's native reader."""
+    table_sql_name = _normalize_label(table_settings.source_descriptor.descriptor)
+    if table_sql_name and table_sql_name[0].isdigit():
+        table_sql_name = f"t_{table_sql_name}"
+    if len(table_sql_name) > 63:
+        table_sql_name = table_sql_name[:63]
+
     conn.execute(f"""
-    CREATE TABLE "{table_settings.source_descriptor.sql_name}"
+    CREATE TABLE "{table_sql_name}"
     AS SELECT * FROM read_parquet('{upload_path}')
     """)
 
-    return _finalize_table(conn, table_settings)
+    return _finalize_table(conn, table_settings, table_sql_name)
 
 
 def _process_excel_table(
@@ -283,6 +328,12 @@ def _process_excel_table(
 ) -> TableCatalog:
     """Process Excel worksheet using openpyxl + DuckDB."""
     import openpyxl
+
+    table_sql_name = _normalize_label(table_settings.source_descriptor.descriptor)
+    if table_sql_name and table_sql_name[0].isdigit():
+        table_sql_name = f"t_{table_sql_name}"
+    if len(table_sql_name) > 63:
+        table_sql_name = table_sql_name[:63]
 
     wb = openpyxl.load_workbook(upload_path, read_only=True, data_only=True)
     ws = wb[table_settings.source_descriptor.descriptor.replace("Worksheet: ", "")]
@@ -301,7 +352,7 @@ def _process_excel_table(
         duckdb_type = _map_type(col_setting.requested_type)
         column_defs.append(f'"{col_setting.sql_name}" {duckdb_type}')
 
-    create_sql = f'CREATE TABLE "{table_settings.source_descriptor.sql_name}" ({", ".join(column_defs)})'
+    create_sql = f'CREATE TABLE "{table_sql_name}" ({", ".join(column_defs)})'
     conn.execute(create_sql)
 
     # Insert data
@@ -314,10 +365,10 @@ def _process_excel_table(
                 values.append(f"'{val.replace("'", "''")}'")
             else:
                 values.append(str(val))
-        insert_sql = f'INSERT INTO "{table_settings.source_descriptor.sql_name}" VALUES ({", ".join(values)})'
+        insert_sql = f'INSERT INTO "{table_sql_name}" VALUES ({", ".join(values)})'
         conn.execute(insert_sql)
 
-    return _finalize_table(conn, table_settings)
+    return _finalize_table(conn, table_settings, table_sql_name)
 
 
 def _process_sqlite_table(
@@ -327,6 +378,12 @@ def _process_sqlite_table(
 ) -> TableCatalog:
     """Process SQLite table by copying to DuckDB."""
     import sqlite3
+
+    table_sql_name = _normalize_label(table_settings.source_descriptor.descriptor)
+    if table_sql_name and table_sql_name[0].isdigit():
+        table_sql_name = f"t_{table_sql_name}"
+    if len(table_sql_name) > 63:
+        table_sql_name = table_sql_name[:63]
 
     sqlite_conn = sqlite3.connect(upload_path)
     sqlite_conn.execute("PRAGMA query_only = ON")
@@ -346,7 +403,7 @@ def _process_sqlite_table(
         duckdb_type = _sqlite_to_duckdb_type(col_type)
         column_defs.append(f'"{name}" {duckdb_type}')
 
-    create_sql = f'CREATE TABLE "{table_settings.source_descriptor.sql_name}" ({", ".join(column_defs)})'
+    create_sql = f'CREATE TABLE "{table_sql_name}" ({", ".join(column_defs)})'
     conn.execute(create_sql)
 
     # Copy data
@@ -360,25 +417,26 @@ def _process_sqlite_table(
                 values.append(f"'{val.replace("'", "''")}'")
             else:
                 values.append(str(val))
-        insert_sql = f'INSERT INTO "{table_settings.source_descriptor.sql_name}" VALUES ({", ".join(values)})'
+        insert_sql = f'INSERT INTO "{table_sql_name}" VALUES ({", ".join(values)})'
         conn.execute(insert_sql)
 
     sqlite_conn.close()
-    return _finalize_table(conn, table_settings)
+    return _finalize_table(conn, table_settings, table_sql_name)
 
 
 def _finalize_table(
     conn: duckdb.DuckDBPyConnection,
     table_settings: TableImportSettings,
+    table_sql_name: str,
 ) -> TableCatalog:
     """Finalize table and build catalog."""
-    count_result = conn.execute(f'SELECT COUNT(*) FROM "{table_settings.source_descriptor.sql_name}"').fetchone()
+    count_result = conn.execute(f'SELECT COUNT(*) FROM "{table_sql_name}"').fetchone()
     row_count = count_result[0] if count_result else 0
 
     column_catalogs = []
     for i, col_setting in enumerate(table_settings.column_settings):
         null_count_result = conn.execute(
-            f'SELECT COUNT(*) FROM "{table_settings.source_descriptor.sql_name}" WHERE "{col_setting.sql_name}" IS NULL'
+            f'SELECT COUNT(*) FROM "{table_sql_name}" WHERE "{col_setting.sql_name}" IS NULL'
         ).fetchone()
         null_count = null_count_result[0] if null_count_result else 0
 
@@ -400,7 +458,7 @@ def _finalize_table(
         dataset_id=CanonicalUUID(str(uuid4())),
         snapshot_id=CanonicalUUID(str(uuid4())),
         ordinal=0,
-        sql_name=table_settings.source_descriptor.sql_name,
+        sql_name=NonblankString(table_sql_name),
         source_descriptor=table_settings.source_descriptor.descriptor,
         row_count=row_count,
         column_catalogs=column_catalogs,

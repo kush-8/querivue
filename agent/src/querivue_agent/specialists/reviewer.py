@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from querivue_agent.contracts.inputs import ReviewInput
@@ -12,8 +12,8 @@ from querivue_agent.runtime.reviewer import ReviewerEngine, ReviewRequest
 from querivue_agent.runtime.prompts import load_prompt
 from querivue_agent.runtime.wrappers import WrapperContext
 
-if __name__:
-    from querivue_agent.providers.base import ModelGateway
+if TYPE_CHECKING:
+    from querivue_agent.runtime.models import ModelGateway
 
 
 async def review(

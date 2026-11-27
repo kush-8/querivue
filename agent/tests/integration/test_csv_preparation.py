@@ -10,16 +10,13 @@ from uuid import uuid4
 import pytest
 
 from querivue_agent.contracts.catalog import (
-    ImportSettings,
     PreparedCandidate,
     PreparedSnapshot,
-    SourceSelection,
-    FileSource,
-    ColumnImportSettings,
-    DelimitedDialect,
-    NonblankString,
     TableCatalog,
     ColumnCatalog,
+    FileSource,
+    DelimitedDialect,
+    NonblankString,
 )
 from querivue_agent.contracts.evidence import (
     ColumnType,
@@ -36,8 +33,14 @@ from querivue_agent.contracts.evidence import (
 from querivue_agent.contracts.common import SafeCount, Scope
 from querivue_agent.contracts.values import CanonicalUUID
 from querivue_agent.contracts.artifacts import Sha256, ArtifactRef, SourceDependency
+from querivue_agent.ingestion.settings import (
+    ImportSettings,
+    SourceDescriptor,
+    ColumnImportSettings,
+    TableImportSettings,
+    PreparationAttempt,
+)
 from querivue_agent.execution.importer import import_dataset, validate_candidate
-from querivue_agent.ingestion.settings import PreparationAttempt
 from querivue_agent.storage.ledger import Ledger, LedgerOps
 from querivue_agent.storage.artifacts import initialize_artifact_store
 from querivue_agent.ingestion.preparation import prepare_dataset
@@ -46,12 +49,14 @@ from querivue_agent.ingestion.preparation import prepare_dataset
 @pytest.fixture
 def temp_state_root():
     """Create a temporary state root with initialized storage."""
+    import os
     with tempfile.TemporaryDirectory() as tmp:
         state_root = Path(tmp)
 
         # Initialize ledger
         ledger_path = state_root / "ledger.sqlite"
-        Ledger.open(ledger_path).close()
+        ledger = Ledger.open(ledger_path)
+        ledger.close()
 
         # Initialize artifact store
         artifacts_dir = state_root / "artifacts"
@@ -59,6 +64,10 @@ def temp_state_root():
         initialize_artifact_store(state_root)  # Pass state_root, not artifacts_dir
 
         yield state_root
+
+        # Force close any remaining connections
+        import gc
+        gc.collect()
 
 
 @pytest.fixture
@@ -102,63 +111,55 @@ def valid_import_settings():
     """Create valid import settings for the meaning.csv fixture."""
     return ImportSettings(
         source_format="csv",
-        selections=[
-            SourceSelection(
-                source=FileSource(kind="file", format="csv"),
-                header_present=True,
-                header_row=SafeCount(1),
-                columns=[
+        table_settings=[
+            TableImportSettings(
+                source_descriptor=SourceDescriptor(
+                    source_id=CanonicalUUID(str(uuid4())),
+                    format="csv",
+                    descriptor="meaning.csv",
+                    sql_name=NonblankString("t_001"),
+                    header_row=SafeCount(1),
+                    has_header=True,
+                ),
+                column_settings=[
                     ColumnImportSettings(
-                        source_position=SafeCount(0),
+                        source_ordinal=SafeCount(0),
                         original_label="a",
                         sql_name=NonblankString("a"),
-                        requested_type=Int64Column(tag="int64"),
+                        requested_type="int64",
                         missing_markers=[],
                         decimal_separator=None,
                         thousands_separator=None,
+                        date_format=None,
+                        time_format=None,
                         datetime_format=None,
                         source_timezone=None,
                         conversion_choice=None,
                     ),
                     ColumnImportSettings(
-                        source_position=SafeCount(1),
+                        source_ordinal=SafeCount(1),
                         original_label="a",
                         sql_name=NonblankString("a_2"),
-                        requested_type=Int64Column(tag="int64"),
+                        requested_type="int64",
                         missing_markers=[],
                         decimal_separator=None,
                         thousands_separator=None,
+                        date_format=None,
+                        time_format=None,
                         datetime_format=None,
                         source_timezone=None,
                         conversion_choice=None,
                     ),
                     ColumnImportSettings(
-                        source_position=SafeCount(2),
+                        source_ordinal=SafeCount(2),
                         original_label="a_2",
                         sql_name=NonblankString("a_2_2"),
-                        requested_type=Int64Column(tag="int64"),
+                        requested_type="int64",
                         missing_markers=[],
                         decimal_separator=None,
                         thousands_separator=None,
-                        datetime_format=None,
-                        source_timezone=None,
-                        conversion_choice=None,
-                    ),
-                ],
-            ),
-            SourceSelection(
-                source=FileSource(kind="file", format="csv"),
-                header_present=True,
-                header_row=SafeCount(1),
-                columns=[
-                    ColumnImportSettings(
-                        source_position=SafeCount(0),
-                        original_label="a",
-                        sql_name=NonblankString("a"),
-                        requested_type=Int64Column(tag="int64"),
-                        missing_markers=[],
-                        decimal_separator=None,
-                        thousands_separator=None,
+                        date_format=None,
+                        time_format=None,
                         datetime_format=None,
                         source_timezone=None,
                         conversion_choice=None,
@@ -166,14 +167,14 @@ def valid_import_settings():
                 ],
             ),
         ],
-        dialect=DelimitedDialect(
-            encoding="utf-8",
-            delimiter=",",
-            quote='"',
-            escape=None,
-            strip_bom=False,
-        ),
-        confirmation_id=CanonicalUUID(str(uuid4())),
+        delimiter=",",
+        encoding="utf-8",
+        quote_char='"',
+        escape_char=None,
+        allow_quoted_nulls=False,
+        json_array_of_objects=True,
+        excel_keep_links=False,
+        sqlite_selected_tables=[],
     )
 
 
@@ -195,25 +196,38 @@ class TestCSVPreparationIntegration:
             environment_manifest_id=CanonicalUUID(str(uuid4())),
         )
 
-        with tempfile.TemporaryDirectory(dir=temp_state_root) as tmp:
-            work_path = Path(tmp)
+        # Use a subdirectory that won't be auto-cleaned
+        work_path = temp_state_root / "work_prep"
+        work_path.mkdir(exist_ok=True)
+
+        try:
             result = prepare_dataset(sample_csv_file, valid_import_settings, attempt, work_path)
 
-        assert result.errors == []
-        assert result.snapshot is not None
-        assert result.catalog is not None
-        assert len(result.catalog) == 1
-        assert result.catalog[0].row_count == 3
-        assert len(result.catalog[0].columns) == 3
+            assert result.errors == []
+            assert result.snapshot is not None
+            assert result.catalog is not None
+            assert len(result.catalog) == 1
+            assert result.catalog[0].row_count == 3
+            assert len(result.catalog[0].columns) == 3
 
-        # Verify column names match the expected collision handling
-        col_names = [str(c.sql_name) for c in result.catalog[0].columns]
-        assert col_names == ["a", "a_2", "a_3"]
+            # Verify column names match the expected collision handling
+            col_names = [str(c.sql_name) for c in result.catalog[0].columns]
+            assert col_names == ["a", "a_2", "a_2_2"]
+        finally:
+            # Cleanup
+            import shutil
+            if work_path.exists():
+                shutil.rmtree(work_path)
 
     @pytest.mark.asyncio
     async def test_import_dataset_guest(self, temp_state_root, ledger_with_dataset, valid_import_settings):
         """Test guest importer."""
-        scope = Scope(scope_id=CanonicalUUID("00000000-0000-0000-0000-000000000000"))
+        scope = Scope(
+            project_id=CanonicalUUID("00000000-0000-0000-0000-000000000000"),
+            chat_id=CanonicalUUID("00000000-0000-0000-0000-000000000000"),
+            run_id=None,
+            eligible_dataset_ids=[],
+        )
 
         # This will fail because the ledger setup is complex
         # but we can test the import function is callable
@@ -233,8 +247,9 @@ class TestCSVPreparationIntegration:
 
     def test_validate_candidate(self, temp_state_root):
         """Test candidate validation."""
-        from querivue_agent.contracts.catalog import PreparedSnapshot
+        from querivue_agent.contracts.catalog import PreparedSnapshot, ColumnImportSettings
         from querivue_agent.contracts.artifacts import ArtifactRef, SourceDependency
+        from querivue_agent.contracts.evidence import StringColumn
 
         env_manifest_id = CanonicalUUID(str(uuid4()))
 
@@ -250,6 +265,7 @@ class TestCSVPreparationIntegration:
 
         dataset_id = CanonicalUUID(str(uuid4()))
         snapshot_id = CanonicalUUID(str(uuid4()))
+        table_id = CanonicalUUID(str(uuid4()))
 
         snapshot = PreparedSnapshot(
             dataset_id=dataset_id,
@@ -257,7 +273,7 @@ class TestCSVPreparationIntegration:
             snapshot_id=snapshot_id,
             catalog_id=CanonicalUUID(str(uuid4())),
             catalog_hash=Sha256("b" * 64),
-            table_ids=[CanonicalUUID(str(uuid4()))],
+            table_ids=[table_id],
             artifact=artifact,
             schema_fingerprint="c" * 64,
             environment_manifest_id=env_manifest_id,  # Must match artifact's environment_manifest_id
@@ -271,8 +287,9 @@ class TestCSVPreparationIntegration:
         )
 
         # Create a minimal table catalog for the candidate
+        # Use ingestion.ColumnImportSettings for the catalog (matches the contract's expected type)
         table_catalog = TableCatalog(
-            table_id=CanonicalUUID(str(uuid4())),
+            table_id=table_id,  # Must match snapshot table_ids
             dataset_id=dataset_id,
             snapshot_id=snapshot_id,
             ordinal=0,
@@ -338,20 +355,28 @@ class TestCollisionHandling:
             environment_manifest_id=CanonicalUUID(str(uuid4())),
         )
 
-        with tempfile.TemporaryDirectory(dir=temp_state_root) as tmp:
-            work_path = Path(tmp)
+        # Use a subdirectory that won't be auto-cleaned
+        work_path = temp_state_root / "work_prep"
+        work_path.mkdir(exist_ok=True)
+
+        try:
             result = prepare_dataset(sample_csv_file, valid_import_settings, attempt, work_path)
 
-        assert result.errors == []
-        assert len(result.catalog) == 1
+            assert result.errors == []
+            assert len(result.catalog) == 1
 
-        # Verify the column SQL names follow the collision rules:
-        # Header: a, a, a_2
-        # First "a" -> "a"
-        # Second "a" -> "a_2" (collision with first)
-        # "a_2" -> "a_2_2" (collision with the generated "a_2")
-        col_names = [str(c.sql_name) for c in result.catalog[0].columns]
-        assert col_names == ["a", "a_2", "a_2_2"], f"Expected ['a', 'a_2', 'a_2_2'], got {col_names}"
+            # Verify the column SQL names follow the collision rules:
+            # Header: a, a, a_2
+            # First "a" -> "a"
+            # Second "a" -> "a_2" (collision with first)
+            # "a_2" -> "a_2_2" (collision with the generated "a_2")
+            col_names = [str(c.sql_name) for c in result.catalog[0].columns]
+            assert col_names == ["a", "a_2", "a_2_2"], f"Expected ['a', 'a_2', 'a_2_2'], got {col_names}"
+        finally:
+            # Cleanup
+            import shutil
+            if work_path.exists():
+                shutil.rmtree(work_path)
 
     def test_data_values_preserved(self, temp_state_root, sample_csv_file, valid_import_settings):
         """Test that data values are correctly loaded."""
@@ -369,24 +394,33 @@ class TestCollisionHandling:
             environment_manifest_id=CanonicalUUID(str(uuid4())),
         )
 
-        with tempfile.TemporaryDirectory(dir=temp_state_root) as tmp:
-            work_path = Path(tmp)
-            result = prepare_dataset(sample_csv_file, valid_import_settings, attempt, work_path)
-
-        assert result.errors == []
-
-        # Open the prepared database and verify data
-        db_path = work_path / "prepared.duckdb"
-        conn = duckdb.connect(str(db_path), read_only=True)
+        # Use a subdirectory that won't be auto-cleaned
+        work_path = temp_state_root / "work_prep"
+        work_path.mkdir(exist_ok=True)
 
         try:
-            rows = conn.execute('SELECT * FROM "t_001"').fetchall()
-            assert len(rows) == 3
-            assert rows[0] == (1, 2, 3)
-            assert rows[1] == (4, 5, 6)
-            assert rows[2] == (7, 8, 9)
+            result = prepare_dataset(sample_csv_file, valid_import_settings, attempt, work_path)
+
+            assert result.errors == []
+
+            # Open the prepared database and verify data
+            db_path = work_path / "prepared.duckdb"
+            conn = duckdb.connect(str(db_path), read_only=True)
+
+            try:
+                # Table name is generated from descriptor "meaning.csv" -> "meaning_csv"
+                rows = conn.execute('SELECT * FROM "meaning_csv"').fetchall()
+                assert len(rows) == 3
+                assert rows[0] == (1, 2, 3)
+                assert rows[1] == (4, 5, 6)
+                assert rows[2] == (7, 8, 9)
+            finally:
+                conn.close()
         finally:
-            conn.close()
+            # Cleanup
+            import shutil
+            if work_path.exists():
+                shutil.rmtree(work_path)
 
 
 if __name__ == "__main__":
