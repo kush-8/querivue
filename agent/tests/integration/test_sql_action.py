@@ -176,7 +176,7 @@ class TestSQLActionIntegration:
         response = await runner.handle_request_from_data(mailbox_request)
 
         assert response.status == "succeeded"
-        assert response.result["row_count"] == 3
+        assert response.result["returned_row_count"] == 3
         await runner.shutdown()
 
     @pytest.mark.asyncio
@@ -571,7 +571,7 @@ class TestSQLActionIntegration:
         )
         resp2 = await runner.handle_request_from_data(mr2)
         assert resp2.status == "succeeded"
-        assert resp2.result["row_count"] == 2
+        assert resp2.result["returned_row_count"] == 2
 
         # 3. Execute query
         from querivue_agent.contracts.tools import ExecuteQueryRequest
@@ -591,7 +591,7 @@ class TestSQLActionIntegration:
         assert resp3.status == "succeeded"
         assert resp3.result["row_count"] == 1
         assert "evidence_id" in resp3.result
-        assert "content_hash" in resp3.result
+        assert "artifact_hash" in resp3.result
 
         await runner.shutdown()
 

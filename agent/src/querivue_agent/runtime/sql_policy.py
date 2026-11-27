@@ -227,20 +227,13 @@ class SQLPolicyValidator:
         return authorized_relations
 
     def _check_cte_depth(self, ast: exp.Expression) -> None:
-        """Check CTE nesting depth."""
-        def count_cte_depth(node: exp.Expression, depth: int = 0) -> int:
-            max_depth = depth
-            if isinstance(node, exp.With):
-                max_depth = max(max_depth, depth + 1)
-                for cte in node.expressions:
-                    max_depth = max(max_depth, count_cte_depth(cte, depth + 1))
-            for child in node.iter_expressions():
-                max_depth = max(max_depth, count_cte_depth(child, depth))
-            return max_depth
+        """Check CTE depth - counts total CTEs in the query."""
+        total_ctes = 0
+        for with_node in ast.find_all(exp.With):
+            total_ctes += len(with_node.expressions)
 
-        depth = count_cte_depth(ast)
-        if depth > self._policy.max_cte_depth:
-            raise SQLValidationError("cte_depth_exceeded", f"CTE depth {depth} exceeds max {self._policy.max_cte_depth}", "validation")
+        if total_ctes > self._policy.max_cte_depth:
+            raise SQLValidationError("cte_depth_exceeded", f"CTE count {total_ctes} exceeds max {self._policy.max_cte_depth}", "validation")
 
     def _validate_functions(self, ast: exp.Expression) -> None:
         """Validate all function calls against allowed list."""
