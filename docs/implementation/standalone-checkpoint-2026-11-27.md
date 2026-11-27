@@ -1,5 +1,7 @@
 # Standalone implementation checkpoint · 27 November 2026
 
+**Historical checkpoint:** subsequent commits changed the reviewed source. Use the [later codebase recheck](standalone-recheck-2026-11-27.md) for current findings. In particular, the lone-version-999 guard is now present, native graph modules exist, and CSV CLI code is under active implementation; remaining defects and current test failures are recorded in the later report.
+
 **Next prerequisite: harden T03 ledger schema admission before further runtime integration.** T02 already has substantial implementation and passing fixed-vector checks; do not restart it from the stale 24 November status. This checkpoint is a scoped source/evidence audit, not complete acceptance of T01–T18 or authorization to implement fixes.
 
 ## Evidence and scope

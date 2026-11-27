@@ -83,6 +83,11 @@ class ImportSettings:
         data = json.dumps(self.to_canonical_dict(), separators=(",", ":"), sort_keys=True)
         return hashlib.sha256(data.encode("utf-8")).hexdigest()
 
+    def model_dump_json(self) -> str:
+        """Serialize to JSON string for CLI compatibility."""
+        import json
+        return json.dumps(self.to_canonical_dict(), separators=(",", ":"), sort_keys=True)
+
     def to_canonical_dict(self) -> dict[str, Any]:
         """Convert to canonical dict for hashing."""
         return {

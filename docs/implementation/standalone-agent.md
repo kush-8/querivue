@@ -1,5 +1,7 @@
 # Standalone Agent Implementation Plan
 
+**Latest review:** the [27 November recheck](standalone-recheck-2026-11-27.md) supersedes the earlier resume note below. New graph, sandbox/admission, CSV, SQL and review work exists. Latest focused CLI run has 5 failures/9 passes after concurrent test repairs; CSV contract conversion, retained preparation artifacts and mixed-schema/nonmutating ledger admission remain concrete issues. Preserve existing implementation rather than restarting tasks from historical checkboxes.
+
 > **For agentic workers:** Use `superpowers:subagent-driven-development` for authorized coding, with the repository's fresh-context, smaller-model, explicit medium-reasoning worker rules. The supervisor supplies bounded specification excerpts; workers read assigned code/tests, not project documentation. Steps use checkboxes. This document authorizes no execution.
 
 **Goal:** Implement and verify the standalone Querivue agent/CLI through PRD milestones 1A–1G, without Django, application workers or frontend changes.

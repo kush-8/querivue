@@ -375,6 +375,7 @@ def import_settings(*, confirmed: bool) -> dict:
         "header_present": False,
         "header_row": None,
         "columns": [],
+        "warnings": [],
     }
     value = {"settings_version": "v1", "source_format": "parquet", "selections": [selection], "dialect": None}
     if confirmed:

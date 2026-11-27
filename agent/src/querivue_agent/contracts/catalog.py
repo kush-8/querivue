@@ -80,6 +80,7 @@ class SourceSelection(_StrictModel):
     header_present: bool
     header_row: PositiveSafeInteger | None
     columns: list[ColumnImportSettings]
+    warnings: list[NonblankString] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def validate_selection(self) -> "SourceSelection":
@@ -142,6 +143,17 @@ class ImportSettings(ImportSettingsProposal):
         if any(not selection.columns for selection in self.selections):
             raise ValueError("confirmed selections require column schemas")
         return self
+
+    def to_canonical_dict(self) -> dict:
+        """Convert to canonical dict for hashing."""
+        return self.model_dump(mode="json", exclude_none=True)
+
+    def canonical_hash(self) -> str:
+        """Compute canonical SHA-256 hash of settings."""
+        import hashlib
+        import json
+        data = json.dumps(self.to_canonical_dict(), separators=(",", ":"), sort_keys=True)
+        return hashlib.sha256(data.encode("utf-8")).hexdigest()
 
 
 class ImportPreview(_StrictModel):

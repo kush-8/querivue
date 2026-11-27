@@ -14,6 +14,7 @@ from uuid import uuid4
 from querivue_agent.contracts.common import SafeCount, NonblankString
 from querivue_agent.contracts.values import CanonicalUUID, UnicodeString
 from querivue_agent.contracts.artifacts import Sha256
+from querivue_agent.contracts.catalog import FileSource
 from querivue_agent.ingestion.settings import ImportFormat, SourceDescriptor
 
 
@@ -38,6 +39,14 @@ class TablePreview:
     columns: list[ColumnPreview] = field(default_factory=list)
     sample_rows: list[list[str]] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+
+    @property
+    def has_header(self) -> bool:
+        return self.source_descriptor.has_header
+
+    @property
+    def header_row(self):
+        return self.source_descriptor.header_row
 
 
 @dataclass
@@ -130,8 +139,9 @@ def inspect_csv(path: Path, encoding: str = "utf-8", delimiter: str | None = Non
         source_descriptor=SourceDescriptor(
             source_id=CanonicalUUID(str(uuid4())),
             format="csv",
-            descriptor="CSV file",
-            sql_name=None,  # Not needed for preview
+            descriptor="data.csv",
+            has_header=True,
+            header_row=1,
         ),
         row_count=len(data_rows),
         columns=columns,
@@ -222,7 +232,8 @@ def inspect_json(path: Path) -> InspectionResult:
         source_descriptor=SourceDescriptor(
             source_id=CanonicalUUID(str(uuid4())),
             format="json",
-            descriptor="JSON array",
+            descriptor="data.json",
+            has_header=False,
         ),
         row_count=len(data),
         columns=columns,
@@ -282,7 +293,8 @@ def inspect_jsonl(path: Path) -> InspectionResult:
         source_descriptor=SourceDescriptor(
             source_id=CanonicalUUID(str(uuid4())),
             format="jsonl",
-            descriptor="JSONL file",
+            descriptor="data.jsonl",
+            has_header=False,
         ),
         row_count=len(data),
         columns=columns,
@@ -329,7 +341,8 @@ def inspect_parquet(path: Path) -> InspectionResult:
             source_descriptor=SourceDescriptor(
                 source_id=CanonicalUUID(str(uuid4())),
                 format="parquet",
-                descriptor="Parquet file",
+                descriptor="data.parquet",
+                has_header=False,
             ),
             row_count=table.num_rows,
             columns=columns,
@@ -390,7 +403,8 @@ def inspect_excel(path: Path) -> InspectionResult:
                 source_descriptor=SourceDescriptor(
                     source_id=CanonicalUUID(str(uuid4())),
                     format="excel",
-                    descriptor=f"Worksheet: {sheet_name}",
+                    descriptor=sheet_name,
+                    has_header=True,
                 ),
                 row_count=len(data_rows),
                 columns=columns,
@@ -457,7 +471,8 @@ def inspect_sqlite(path: Path) -> InspectionResult:
                 source_descriptor=SourceDescriptor(
                     source_id=CanonicalUUID(str(uuid4())),
                     format="sqlite",
-                    descriptor=f"Table: {table_name}",
+                    descriptor=table_name,
+                    has_header=False,
                 ),
                 row_count=row_count,
                 columns=columns,

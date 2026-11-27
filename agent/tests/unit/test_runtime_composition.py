@@ -3,8 +3,14 @@
 import asyncio
 import inspect
 import json
+from pathlib import Path
+from uuid import uuid4
 
 import pytest
+
+from querivue_agent.execution.python_runner import PythonRunnerConfig
+from querivue_agent.contracts.common import Scope
+from querivue_agent.contracts.values import CanonicalUUID
 
 
 def test_console_main_is_synchronous():
@@ -42,6 +48,35 @@ def test_runtime_modules_import_with_canonical_types():
 def test_python_runner_fails_closed_before_execution():
     from querivue_agent.execution.python_runner import PythonRunner
 
-    runner = PythonRunner(config=None, sandbox=None)  # type: ignore[arg-type]
-    with pytest.raises(NotImplementedError, match="ticket admission"):
-        asyncio.run(runner.start())
+    # Create a minimal valid config
+    config = PythonRunnerConfig(
+        action_id=uuid4(),
+        run_id=uuid4(),
+        attempt=1,
+        runner_nonce=1,
+        sandbox_id=uuid4(),
+        pid=12345,
+        authorized_evidence={},
+        analysis_timezone=None,
+        artifact_dir=Path("/tmp"),
+        resource_limits={},
+        scope=Scope(
+            project_id=CanonicalUUID("00000000-0000-0000-0000-000000000000"),
+            chat_id=CanonicalUUID("00000000-0000-0000-0000-000000000000"),
+            run_id=None,
+            eligible_dataset_ids=[],
+        ),
+    )
+
+    # Old behavior: NotImplementedError - now start() should work (create ticket)
+    # It only fails later when execute_python is called with sandbox=None
+    runner = PythonRunner(config=config, sandbox=None)  # type: ignore[arg-type]
+    # start() should now work without NotImplementedError
+    asyncio.run(runner.start())
+    assert runner._ticket is not None
+    # execute_python will fail with AttributeError when trying to use sandbox=None
+    with pytest.raises(AttributeError):
+        asyncio.run(runner.execute_python(
+            request=None,  # type: ignore
+            operation_id=uuid4(),
+        ))

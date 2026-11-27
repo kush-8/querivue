@@ -147,6 +147,13 @@ class LedgerOps:
             ).fetchone()
             return dict(row) if row else None
 
+    def list_datasets(self, project_id: str) -> list[dict]:
+        with self._ledger.transaction() as conn:
+            rows = conn.execute(
+                "SELECT * FROM datasets WHERE project_id = ? ORDER BY created_at", (project_id,)
+            ).fetchall()
+            return [dict(row) for row in rows]
+
     def update_dataset_status(self, dataset_id: str, status: str, **extra: Any) -> None:
         sets = ["status = ?", "updated_at = ?"]
         vals = [status, _now_iso()]

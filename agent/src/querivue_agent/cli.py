@@ -27,6 +27,7 @@ from querivue_agent.ingestion import (
     inspect_upload_controller,
     prepare_dataset_controller,
 )
+from querivue_agent.contracts.catalog import SourceDescriptor
 from datetime import datetime, timezone
 
 
@@ -194,12 +195,14 @@ async def cmd_import(args: argparse.Namespace, config: RunConfig) -> int:
         dataset_id = str(uuid4())
         project_id = args.project or "default"
 
+        # Create project first (FK constraint)
+        ops.create_project(project_id)
+
         ops.create_dataset(
             dataset_id=dataset_id,
-            name=f"Import: {src_path.name}",
+            project_id=project_id,
             upload_ref=str(upload_id),
             upload_hash=upload_hash,
-            owner_generation=1,
         )
 
         # Run inspection
@@ -329,7 +332,6 @@ async def _cmd_ask_with_ledger(
         return 0
 
     # Admit the run - compute proper hashes from config and entry
-    import json
     context_hash_data = intake_entry.model_dump(mode="json")
     context_hash = hashlib.sha256(json.dumps(context_hash_data, sort_keys=True).encode()).hexdigest()
     config_payload = config.model_dump(mode="json")

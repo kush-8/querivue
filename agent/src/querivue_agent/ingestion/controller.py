@@ -7,8 +7,9 @@ import tempfile
 from pathlib import Path
 from uuid import UUID, uuid4
 
-from querivue_agent.contracts.catalog import ImportPreview, ImportSettingsProposal
-from querivue_agent.contracts.common import Scope
+from querivue_agent.contracts.catalog import ImportPreview, ImportSettingsProposal, SourceSelection, DelimitedDialect, ColumnImportSettings as CatalogColumnImportSettings, FileSource, SourceFormat
+from querivue_agent.contracts.evidence import ColumnType, StringColumn, Int64Column, BooleanColumn, DateColumn, TimeColumn, TimestampColumn, TimestamptzColumn, Uint64Column
+from querivue_agent.contracts.common import Scope, NonblankString, SafeCount
 from querivue_agent.contracts.artifacts import StagedArtifact, ArtifactRef
 from querivue_agent.contracts.values import CanonicalUUID
 from querivue_agent.storage.artifacts import ArtifactStore
@@ -26,7 +27,7 @@ from querivue_agent.ingestion.catalog import (
 from querivue_agent.ingestion.settings import (
     ImportSettings,
     SourceDescriptor,
-    ColumnImportSettings,
+    ColumnImportSettings as SettingsColumnImportSettings,
     TableImportSettings,
     ImportFormat,
 )
@@ -50,25 +51,24 @@ def _inspection_to_import_preview(
 
         column_settings = []
         for col_idx, (col, sql_name) in enumerate(zip(table.columns, sql_names)):
-            # Map inferred type to requested type
+            # Map inferred type to requested type (ColumnType discriminated union)
             type_map = {
-                "int64": "int64",
-                "uint64": "uint64",
-                "decimal": "decimal",
-                "string": "string",
-                "date": "date",
-                "time": "time",
-                "timestamp": "timestamp",
-                "timestamptz": "timestamptz",
-                "boolean": "boolean",
-                "unknown": "string",
+                "int64": Int64Column(tag="int64"),
+                "uint64": Uint64Column(tag="uint64"),
+                "decimal": "decimal",  # Will need precision/scale - defaulting to string for now
+                "string": StringColumn(tag="string"),
+                "date": DateColumn(tag="date"),
+                "time": TimeColumn(tag="time"),
+                "timestamp": TimestampColumn(tag="timestamp"),
+                "timestamptz": TimestamptzColumn(tag="timestamptz"),
+                "boolean": BooleanColumn(tag="boolean"),
+                "unknown": StringColumn(tag="string"),
             }
-            requested_type = type_map.get(col.inferred_type, "string")
+            requested_type = type_map.get(col.inferred_type, StringColumn(tag="string"))
 
-            column_settings.append(ColumnImportSettings(
-                source_ordinal=col.ordinal,
+            column_settings.append(CatalogColumnImportSettings(
+                source_position=col.ordinal,
                 original_label=col.original_label,
-                sql_name=sql_name,
                 requested_type=requested_type,
                 missing_markers=[],
                 decimal_separator=None,
@@ -78,19 +78,17 @@ def _inspection_to_import_preview(
                 conversion_choice=None,
             ))
 
-        # Determine source descriptor
-        source_desc = SourceDescriptor(
-            source_id=table.source_descriptor.source_id,
-            format=inspection.format,
-            descriptor=table.source_descriptor.descriptor,
-            sql_name=table.source_descriptor.sql_name,
-            header_row=0 if table.source_descriptor.format in ("csv", "tsv") else None,
-            has_header=True,
+        # Determine source descriptor (using Pydantic FileSource)
+        file_source = FileSource(
+            kind="file",
+            format=inspection.format,  # type: ignore[arg-type]
         )
 
-        selections.append(TableImportSettings(
-            source_descriptor=source_desc,
-            column_settings=column_settings,
+        selections.append(SourceSelection(
+            source=file_source,
+            header_present=table.source_descriptor.has_header,
+            header_row=table.source_descriptor.header_row if table.source_descriptor.has_header else None,
+            columns=column_settings,
             warnings=table.warnings,
         ))
 
@@ -215,6 +213,13 @@ async def prepare_dataset_controller(
     from querivue_agent.ingestion.preparation import prepare_dataset, PreparationAttempt, PreparationResult
     from querivue_agent.contracts.catalog import PreparedCandidate
     from querivue_agent.storage.ledger import Ledger, LedgerOps
+    from querivue_agent.ingestion.settings import (
+        ImportSettings as SettingsImportSettings,
+        SourceDescriptor,
+        ColumnImportSettings as SettingsColumnImportSettings,
+        TableImportSettings,
+        ImportFormat,
+    )
 
     # Open ledger
     ledger_path = state_root / "ledger.sqlite"
@@ -231,13 +236,76 @@ async def prepare_dataset_controller(
         upload_ref = dataset["upload_ref"]
         upload_hash = dataset["upload_hash"]
 
+        # Convert Pydantic ImportSettings to dataclass ImportSettings for preparation
+        selections = settings.selections
+        dialect = settings.dialect
+
+        # Build table settings from selections
+        table_settings = []
+        for selection in selections:
+            # Map Pydantic SourceDescriptor to dataclass SourceDescriptor
+            source = selection.source
+            if hasattr(source, 'format'):
+                # FileSource
+                source_format = source.format
+                descriptor = "data.csv"  # Default descriptor
+            else:
+                source_format = "csv"
+                descriptor = "data.csv"
+
+            source_descriptor = SourceDescriptor(
+                source_id=CanonicalUUID("00000000-0000-0000-0000-000000000000"),
+                format=source_format,  # type: ignore
+                descriptor=descriptor,
+                has_header=selection.header_present,
+                header_row=selection.header_row,
+            )
+
+            column_settings = []
+            for col in selection.columns:
+                column_settings.append(SettingsColumnImportSettings(
+                    source_ordinal=col.source_position,
+                    original_label=col.original_label,
+                    sql_name=NonblankString(col.sql_name) if hasattr(col, 'sql_name') and col.sql_name else NonblankString(f"col_{col.source_position}"),
+                    requested_type=col.requested_type.tag,
+                    missing_markers=col.missing_markers,
+                    decimal_separator=col.decimal_separator,
+                    thousands_separator=col.thousands_separator,
+                    date_format=None,
+                    time_format=None,
+                    datetime_format=col.datetime_format,
+                    source_timezone=col.source_timezone,
+                    conversion_choice=col.conversion_choice,
+                ))
+
+            table_settings.append(TableImportSettings(
+                source_descriptor=source_descriptor,
+                column_settings=column_settings,
+                warnings=selection.warnings,
+            ))
+
+        # Create dataclass ImportSettings
+        settings_for_prep = SettingsImportSettings(
+            settings_version=int(settings.settings_version),
+            source_format=settings.source_format,  # type: ignore
+            table_settings=table_settings,
+            delimiter=dialect.delimiter if dialect else ",",
+            encoding=dialect.encoding if dialect else "utf-8",
+            quote_char=dialect.quote if dialect else '"',
+            escape_char=dialect.escape if dialect else None,
+            allow_quoted_nulls=False,
+            json_array_of_objects=True,
+            excel_keep_links=False,
+            sqlite_selected_tables=[],
+        )
+
         # Create preparation attempt
         attempt_id = CanonicalUUID(str(uuid4()))
         attempt = PreparationAttempt(
             dataset_id=CanonicalUUID(str(dataset_id)),
             attempt_id=attempt_id,
             attempt_number=dataset.get("attempt_number", 1),
-            settings_hash=settings.canonical_hash(),
+            settings_hash=settings_for_prep.canonical_hash(),
             upload_hash=upload_hash,
             expected_owner_generation=1,
             phase="preparing",
@@ -267,7 +335,7 @@ async def prepare_dataset_controller(
         # Run preparation
         with tempfile.TemporaryDirectory(dir=state_root) as tmp:
             work_path = Path(tmp)
-            result = prepare_dataset(upload_file, settings, attempt, work_path)
+            result = prepare_dataset(upload_file, settings_for_prep, attempt, work_path)
 
         if result.errors:
             ops.update_preparation_attempt(str(attempt_id), phase="failed")
